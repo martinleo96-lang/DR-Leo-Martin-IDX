@@ -1,0 +1,13 @@
+{
+  "name": "idx-terminal",
+  "version": "1.0.0",
+  "description": "Chart saham Indonesia (BEI/IDX) ala TradingView — candlestick, indikator teknikal, watchlist LQ45, data live.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

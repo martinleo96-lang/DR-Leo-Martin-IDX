@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>IDX Terminal — Chart Saham Indonesia</title>
+<meta name="description" content="Aplikasi chart saham Indonesia (BEI/IDX) ala TradingView: candlestick, indikator teknikal, analisis teknikal otomatis, alert harga, watchlist LQ45, data live." />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#131722" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23131722'/%3E%3Crect x='6' y='12' width='4' height='10' fill='%2326a69a'/%3E%3Crect x='7.4' y='8' width='1.2' height='16' fill='%2326a69a'/%3E%3Crect x='14' y='10' width='4' height='8' fill='%23ef5350'/%3E%3Crect x='15.4' y='6' width='1.2' height='14' fill='%23ef5350'/%3E%3Crect x='22' y='13' width='4' height='9' fill='%2326a69a'/%3E%3Crect x='23.4' y='9' width='1.2' height='17' fill='%2326a69a'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ======================= TOP BAR ======================= -->
+<header id="topbar">
+  <div class="logo" title="IDX Terminal">
+    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#1e222d"/>
+      <rect x="6" y="12" width="4" height="10" fill="#26a69a"/>
+      <rect x="7.4" y="8" width="1.2" height="16" fill="#26a69a"/>
+      <rect x="14" y="10" width="4" height="8" fill="#ef5350"/>
+      <rect x="15.4" y="6" width="1.2" height="14" fill="#ef5350"/>
+      <rect x="22" y="13" width="4" height="9" fill="#26a69a"/>
+      <rect x="23.4" y="9" width="1.2" height="17" fill="#26a69a"/>
+    </svg>
+    <span class="logo-text">IDX<b>Terminal</b></span>
+  </div>
+
+  <div class="search-box">
+    <svg class="search-ico" viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+    <input id="searchInput" type="text" placeholder="Cari saham / indeks… (mis. BBCA, Telkom, IHSG)" autocomplete="off" spellcheck="false" />
+    <div id="searchResults" class="hidden"></div>
+  </div>
+
+  <div id="quoteHead" class="hidden">
+    <div class="q-left">
+      <span id="qSymbol" class="q-symbol">—</span>
+      <span id="qName" class="q-name">—</span>
+      <span id="qSynth" class="badge-synth hidden">SIMULASI</span>
+    </div>
+    <div class="q-right">
+      <span id="qPrice" class="q-price">—</span>
+      <span id="qChange" class="q-change">—</span>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+
+  <button id="btnInstall" class="icon-btn hidden" title="Pasang aplikasi ke layar utama (Android)">
+    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
+  </button>
+
+  <button id="btnAlertBell" class="icon-btn bell" title="Alert harga">
+    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+    <span id="alertBadge" class="badge hidden">0</span>
+  </button>
+
+  <div id="marketBadge" class="market-badge" title="Jam perdagangan BEI">
+    <span class="dot"></span><span id="marketLabel">—</span>
+  </div>
+  <div id="clock" title="Waktu Indonesia Barat">--:--:-- WIB</div>
+</header>
+
+<!-- ======================= TOOLBAR ======================= -->
+<nav id="toolbar">
+  <div class="tf-group" id="tfGroup" role="tablist" aria-label="Rentang waktu">
+    <button data-tf="1D">1D</button>
+    <button data-tf="5D">5D</button>
+    <button data-tf="1M">1M</button>
+    <button data-tf="3M">3M</button>
+    <button data-tf="6M" class="active">6M</button>
+    <button data-tf="YTD">YTD</button>
+    <button data-tf="1Y">1Y</button>
+    <button data-tf="5Y">5Y</button>
+  </div>
+
+  <div class="sep"></div>
+
+  <div class="tool-group">
+    <label class="tool-label" for="chartType">Jenis</label>
+    <select id="chartType">
+      <option value="candles">Lilin (Candlestick)</option>
+      <option value="bars">Batang (OHLC)</option>
+      <option value="line">Garis</option>
+      <option value="area">Area</option>
+    </select>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- Menu indikator ala TradingView -->
+  <div class="menu-wrap">
+    <button id="indMenuBtn" class="menu-btn" title="Indikator &amp; strategi">
+      <span class="fx">ƒx</span> Indikator
+      <span id="indCount" class="badge hidden">0</span>
+    </button>
+    <div id="indMenu" class="menu hidden">
+      <div class="menu-sec">Volume</div>
+      <label class="menu-item"><input type="checkbox" data-ind="vol" checked /> Volume</label>
+      <div class="menu-sec">Overlay Harga</div>
+      <label class="menu-item"><input type="checkbox" data-ind="ma" /> Moving Average 20 &amp; 50</label>
+      <label class="menu-item"><input type="checkbox" data-ind="ema" /> EMA 20</label>
+      <label class="menu-item"><input type="checkbox" data-ind="emax" checked /> EMA Cross — 3/7 ▲BUY · 2/6 ▼SELL</label>
+      <label class="menu-item"><input type="checkbox" data-ind="bb" /> Bollinger Bands (20,2)</label>
+      <label class="menu-item"><input type="checkbox" data-ind="vwap" /> VWAP</label>
+      <label class="menu-item"><input type="checkbox" data-ind="ob" checked /> Order Blocks (SMC)</label>
+      <div class="menu-sec">Osilator (pilih satu)</div>
+      <label class="menu-item"><input type="radio" name="osc" value="none" checked /> — Tidak ada</label>
+      <label class="menu-item"><input type="radio" name="osc" value="RSI" /> RSI (14)</label>
+      <label class="menu-item"><input type="radio" name="osc" value="MACD" /> MACD (12,26,9)</label>
+      <label class="menu-item"><input type="radio" name="osc" value="STOCH" /> Stochastic (14,3,3)</label>
+      <label class="menu-item"><input type="radio" name="osc" value="ATR" /> ATR (14)</label>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+
+  <button id="btnFs" class="icon-btn" title="Layar penuh">
+    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+  </button>
+</nav>
+
+<!-- ======================= MAIN LAYOUT ======================= -->
+<main id="layout">
+
+  <!-- Watchlist + Sinyal -->
+  <aside id="watchlist">
+    <div class="wl-tabs">
+      <button class="active" data-wl="pantau">Pantau</button>
+      <button data-wl="sinyal">Sinyal <span id="sigBadge" class="badge static hidden">0</span></button>
+    </div>
+
+    <div id="wlPanePantau">
+      <div class="wl-head">
+        <span>Daftar Pantau</span>
+        <span id="wlUpdated" class="wl-updated" title="Terakhir diperbarui"></span>
+      </div>
+      <div id="wlIndices"></div>
+      <div class="wl-sub">Saham Populer / LQ45</div>
+      <div id="wlList"></div>
+    </div>
+
+    <div id="wlPaneSinyal" class="hidden">
+      <div class="wl-head">
+        <span>Sinyal Teknikal (Harian)</span>
+        <button id="sigRefresh" class="mini-btn" title="Muat ulang analisis">↻ Muat Ulang</button>
+      </div>
+      <div class="sig-settings">
+        <label><input type="checkbox" id="sigAlertChk" checked /> 🔔 Alert saat ada saham menjadi Strong Buy / Strong Sell (tiap 5 mnt)</label>
+        <label><input type="checkbox" id="obAlertChk" checked /> 🧱 Alert saat Order Block baru terbentuk (52 simbol, harian)</label>
+        <label><input type="checkbox" id="zoneAlertChk" checked /> 🎯 Alert saat harga memasuki zona OB aktif (area entry)</label>
+        <label><input type="checkbox" id="confAlertChk" checked /> 💎 Alert konfluensi (Strong Buy/Sell + OB segar selaras)</label>
+        <label><input type="checkbox" id="emaxAlertChk" checked /> ⚡ Alert EMA cross (3/7 BUY · 2/6 SELL) sesuai timeframe chart</label>
+        <label><input type="checkbox" id="recapChk" checked /> 📋 Rekap harian pukul 09.00 WIB</label>
+      </div>
+      <div class="sig-summary" id="sigSummary"></div>
+      <div class="sig-list" id="sigList"></div>
+      <div class="sig-foot">Sinyal = ringkasan 25 indikator teknikal pada data harian 1 tahun untuk 52 simbol. Diperbarui <span id="sigUpdated">—</span>. Bukan rekomendasi investasi.</div>
+    </div>
+  </aside>
+
+  <!-- Chart -->
+  <section id="chartPanel">
+    <div id="chartContainer">
+      <div id="chart"></div>
+      <div id="obLayer"></div>
+      <div id="legend" class="hidden"></div>
+      <div id="loading" class="hidden">
+        <div class="spinner"></div><span>Memuat data…</span>
+      </div>
+    </div>
+    <footer id="statusbar">
+      <span id="sbLeft">Bursa Efek Indonesia (IDX)</span>
+      <span class="sb-sep">•</span>
+      <span>Mata uang: IDR</span>
+      <span class="sb-sep">•</span>
+      <span id="sbSource">Sumber: Yahoo Finance (delay ±15 menit)</span>
+      <span class="spacer"></span>
+      <span id="sbUpdated"></span>
+      <span class="sb-sep">•</span>
+      <span class="sb-disclaimer">Bukan rekomendasi investasi</span>
+    </footer>
+  </section>
+
+  <!-- Panel kanan: Detail / Teknikal / Alert -->
+  <aside id="details">
+    <div class="dt-tabs">
+      <button class="active" data-tab="Detail">Detail</button>
+      <button data-tab="Teknikal">Teknikal</button>
+      <button data-tab="Alert">Alert <span id="alertCnt" class="badge hidden">0</span></button>
+    </div>
+
+    <!-- ===== TAB DETAIL ===== -->
+    <section id="tabDetail">
+      <div class="dt-symbol">
+        <div id="dSymbol" class="dt-sym">—</div>
+        <div id="dName" class="dt-name">—</div>
+        <div class="dt-price-row">
+          <span id="dPrice" class="dt-price">—</span>
+          <span id="dChange" class="dt-chg">—</span>
+        </div>
+      </div>
+      <div class="dt-section">Statistik</div>
+      <div class="dt-grid">
+        <div class="dt-item"><span>Pembukaan</span><b id="dOpen">—</b></div>
+        <div class="dt-item"><span>Tertinggi</span><b id="dHigh">—</b></div>
+        <div class="dt-item"><span>Terendah</span><b id="dLow">—</b></div>
+        <div class="dt-item"><span>Penutupan</span><b id="dClose">—</b></div>
+        <div class="dt-item"><span>Volume</span><b id="dVol">—</b></div>
+        <div class="dt-item"><span>Rerata Vol 20</span><b id="dAvgVol">—</b></div>
+        <div class="dt-item"><span>52 Mgg Tertinggi</span><b id="dWkH">—</b></div>
+        <div class="dt-item"><span>52 Mgg Terendah</span><b id="dWkL">—</b></div>
+      </div>
+      <div class="dt-section">Info Pasar</div>
+      <div class="dt-grid">
+        <div class="dt-item"><span>Bursa</span><b>IDX — Jakarta</b></div>
+        <div class="dt-item"><span>Mata Uang</span><b>IDR</b></div>
+        <div class="dt-item"><span>Interval</span><b id="dInterval">—</b></div>
+        <div class="dt-item"><span>Jumlah Bar</span><b id="dBars">—</b></div>
+      </div>
+      <div class="dt-hours">
+        <div class="dt-section">Jam Perdagangan (WIB)</div>
+        <p>Sen–Kam: 09.00–12.00 &amp; 13.30–15.00<br/>Jumat: 09.00–11.30 &amp; 14.00–15.00</p>
+      </div>
+    </section>
+
+    <!-- ===== TAB ANALISIS TEKNIKAL ===== -->
+    <section id="tabTeknikal" class="hidden">
+      <div class="ta-note" id="taNote">—</div>
+      <div class="ta-gauge-wrap">
+        <svg id="taGauge" viewBox="0 0 170 104"></svg>
+        <div id="taLabel" class="ta-label">—</div>
+      </div>
+      <div id="taGroups"></div>
+      <div class="dt-section">Osilator</div>
+      <div id="taOsc" class="ta-table"></div>
+      <div class="dt-section">Moving Average</div>
+      <div id="taMA" class="ta-table"></div>
+      <p class="ta-disc">Ringkasan otomatis dari indikator teknikal pada data chart — bukan rekomendasi investasi.</p>
+    </section>
+
+    <!-- ===== TAB ALERT ===== -->
+    <section id="tabAlert" class="hidden">
+      <form id="alertForm" class="al-form">
+        <label>Simbol
+          <div class="al-symrow">
+            <input id="aSymbol" type="text" placeholder="mis. BBCA" maxlength="12" autocomplete="off" spellcheck="false" />
+            <button type="button" id="aUseCur" class="mini-btn" title="Pakai simbol &amp; harga yang sedang tampil">↻ Saat ini</button>
+          </div>
+        </label>
+        <label>Jenis Alert
+          <select id="aType">
+            <option value="price">Harga menembus level</option>
+            <option value="ob">🧱 Order Block (SMC) baru terbentuk</option>
+          </select>
+        </label>
+        <div id="priceFields">
+          <label>Kondisi
+            <select id="aCond">
+              <option value="gte">Harga naik menembus ≥</option>
+              <option value="lte">Harga turun menembus ≤</option>
+            </select>
+          </label>
+          <label>Harga target (Rp)
+            <input id="aPrice" type="number" min="1" step="any" placeholder="mis. 6500" />
+          </label>
+        </div>
+        <label>Catatan (opsional)
+          <input id="aNote" type="text" maxlength="80" placeholder="mis. beli saat breakout" autocomplete="off" />
+        </label>
+        <button class="al-create" type="submit">＋ Buat Alert</button>
+        <p class="al-hint">Alert harga dicek tiap 30 detik; alert Order Block dicek tiap 5 menit (data harian) + seketika saat chart simbol terbuka. Tersimpan di browser ini.</p>
+      </form>
+      <div class="dt-section">Daftar Alert</div>
+      <div id="alertList"></div>
+      <div class="dt-section hist-head">
+        <span>Riwayat Notifikasi</span>
+        <button id="histClear" class="mini-btn" title="Hapus semua riwayat">🗑 Hapus</button>
+      </div>
+      <div id="alertHistory"></div>
+    </section>
+  </aside>
+</main>
+
+<div id="toast" class="hidden"></div>
+
+<script src="vendor/lightweight-charts.js"></script>
+<script src="ta-lib.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
