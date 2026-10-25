@@ -1287,6 +1287,7 @@ async function loadSignals(force) {
     if (j.error) throw new Error(j.error);
     signals = (j.data || []).filter(x => !x.error && x.label);
     checkSignalChanges(signals);
+    checkMarketEmaX(signals);
     autoObScan();
     renderSignals();
     updateWlSigDots();
@@ -1517,6 +1518,9 @@ function initSignalAlertPref() {
   wirePrefChk('#emaxAlertChk', () => emaxAlertOn, v => { emaxAlertOn = v; prefSet(PREF_EMAXALERT, v); },
     '⚡ Alert EMA cross AKTIF — 3/7 BUY · 2/6 SELL mengikuti timeframe chart',
     '🔕 Alert EMA cross dinonaktifkan', () => checkEmaXAlert());
+  wirePrefChk('#emaxAllChk', () => mxAlertOn, v => { mxAlertOn = v; prefSet(PREF_MXALERT, v); },
+    '⚡ Alert EMA cross seluruh pasar AKTIF — setiap cross harian 3/7 & 2/6 di 845 saham',
+    '🔕 Alert EMA cross seluruh pasar dinonaktifkan', () => checkMarketEmaX(signals));
   wirePrefChk('#recapChk', () => recapOn, v => { recapOn = v; prefSet(PREF_RECAP, v); },
     '📋 Rekap harian 09.00 WIB AKTIF', '🔕 Rekap harian dinonaktifkan', () => checkDailyRecap());
   // pulihkan penanda 🆕 dari riwayat (<24 jam)
@@ -1775,6 +1779,47 @@ function fireEmaX(dir, time, close, tfI, i) {
   const msg = `⚡ ${state.symbol} — EMA ${buy ? '3 cross NAIK 7' : '2 cross TURUN 6'} → ${dir} @ ${fmtPrice(close, idxCls)} (TF ${tfI})`;
   pushHistory('emax', msg, state.symbol, dir);
   setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser(`IDX Terminal — EMA Cross ${dir} ${state.symbol}`, msg); }, i * 600);
+}
+
+/* ⚡ EMA cross harian SELURUH PASAR — dari pemindai server (/api/signals)
+   Setiap cross 3/7 (BUY) / 2/6 (SELL) pada bar harian terbaru → alert. */
+const PREF_MXALERT = 'idx-terminal-pref-mxalert';
+const MX_FIRED_KEY = 'idx-terminal-mxfired-v1';
+const MX_INIT_KEY = 'idx-terminal-mxinit-v1';
+let mxAlertOn = prefGet(PREF_MXALERT, true);
+let mxFired = lsGet(MX_FIRED_KEY, {});
+
+function checkMarketEmaX(rows) {
+  const now = Date.now();
+  const dk = dayKeyJakarta();
+  const hits = [];
+  for (const s of rows) {
+    if (String(s.symbol).startsWith('^')) continue;
+    if (s.emaxBuy) {
+      const key = s.symbol + '|BUY|' + dk;
+      if (!mxFired[key]) { mxFired[key] = now; hits.push({ sym: s.symbol, dir: 'BUY', price: s.price, risk: s.risk }); }
+    }
+    if (s.emaxSell) {
+      const key = s.symbol + '|SELL|' + dk;
+      if (!mxFired[key]) { mxFired[key] = now; hits.push({ sym: s.symbol, dir: 'SELL', price: s.price, risk: s.risk }); }
+    }
+  }
+  for (const k of Object.keys(mxFired)) if (now - mxFired[k] > 14 * 864e5) { delete mxFired[k]; }
+  lsSet(MX_FIRED_KEY, mxFired);
+  const initDone = prefGetRaw(MX_INIT_KEY);
+  try { localStorage.setItem(MX_INIT_KEY, '1'); } catch (e) {}
+  if (!initDone) return; // baseline pertama → tandai semua tanpa notifikasi
+  if (!mxAlertOn || !hits.length) return;
+  hits.slice(0, 5).forEach((h, i) => fireMx(h, i));
+  if (hits.length > 5) toast(`⚡ +${hits.length - 5} EMA cross lain — lihat Riwayat Notifikasi.`, 'ok');
+}
+function fireMx(h, i) {
+  const buy = h.dir === 'BUY';
+  const rk = h.risk && RK_META[h.risk] ? ' • ' + RK_META[h.risk].icon : '';
+  const idxCls = String(h.sym).startsWith('^');
+  const msg = `⚡ ${h.sym}${rk} — EMA ${buy ? '3 cross NAIK 7' : '2 cross TURUN 6'} → ${h.dir} @ ${fmtPrice(h.price, idxCls)} (harian)`;
+  pushHistory('emax', msg, h.sym, h.dir);
+  if (i < 5) setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser(`IDX Terminal — EMA Cross ${h.dir} ${h.sym}`, msg); }, i * 600);
 }
 
 /* 📋 Rekap harian 09.00 WIB (jendela 08:55–09:30, sekali sehari) */

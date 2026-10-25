@@ -500,6 +500,8 @@ async function getSignal(entry) {
     // Klasifikasi risiko (indeks tidak diklasifikasikan)
     const isIdx = String(entry.symbol).startsWith('^');
     const risk = isIdx ? null : TALib.classifyRisk(bars, { liquid: LIQUID.has(entry.symbol) });
+    // Cross EMA pada bar harian terbaru: 3↑7 BUY, 2↓6 SELL
+    const emax = TALib.emaCrossNow(bars);
     return {
       symbol: entry.symbol,
       name: entry.name,
@@ -513,6 +515,8 @@ async function getSignal(entry) {
       sector: entry.sector || null,
       risk: risk ? risk.code : null,
       riskNote: risk ? risk.note : null,
+      emaxBuy: emax.buy,
+      emaxSell: emax.sell,
       synthetic: false,
     };
   } catch (e) {

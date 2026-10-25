@@ -5,7 +5,7 @@
      memindai sinyal Strong Buy/Sell & Order Block baru di
      latar belakang lalu menampilkan notifikasi sistem
    ============================================================ */
-const CACHE = 'idx-terminal-v3';
+const CACHE = 'idx-terminal-v4';
 const SHELL = [
   '/', '/index.html', '/styles.css', '/app.js', '/ta-lib.js', '/manifest.webmanifest',
   '/vendor/lightweight-charts.js', '/icons/icon-192.png', '/icons/icon-512.png',

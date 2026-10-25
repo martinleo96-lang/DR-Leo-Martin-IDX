@@ -481,10 +481,27 @@ function classifyRisk(bars, opts = {}) {
   return { code: 'reguler', note: 'Saham reguler', ...m };
 }
 
+/* Cross EMA pada BAR TERAKHIR (yang sedang berjalan/terbaru):
+     BUY  = EMA 3 cross NAIK  EMA 7
+     SELL = EMA 2 cross TURUN EMA 6                                    */
+function emaCrossNow(bars) {
+  const n = bars ? bars.length : 0;
+  if (n < 9) return { buy: false, sell: false };
+  const closes = bars.map(b => b.close);
+  const e3 = emaOn(closes, 3), e7 = emaOn(closes, 7);
+  const e2 = emaOn(closes, 2), e6 = emaOn(closes, 6);
+  const i = n - 1;
+  const buy = e3[i] != null && e3[i - 1] != null && e7[i] != null && e7[i - 1] != null &&
+              e3[i - 1] <= e7[i - 1] && e3[i] > e7[i];
+  const sell = e2[i] != null && e2[i - 1] != null && e6[i] != null && e6[i - 1] != null &&
+               e2[i - 1] >= e6[i - 1] && e2[i] < e6[i];
+  return { buy, sell };
+}
+
 return {
   emaArr, rsiArr, macdArr,
   smaOn, emaOn, wmaOn, vwmaOn, hullOn,
   stochRaw, cciRaw, aoRaw, willrRaw, bbpRaw, uoRaw, adxRaw,
-  computeRatings, labelOf, detectOrderBlocks, classifyRisk,
+  computeRatings, labelOf, detectOrderBlocks, classifyRisk, emaCrossNow,
 };
 });
