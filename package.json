@@ -1,7 +1,7 @@
 {
-  "name": "idx-terminal",
+  "name": "dr-leo-martin-idx",
   "version": "1.0.0",
-  "description": "Chart saham Indonesia (BEI/IDX) ala TradingView — candlestick, indikator teknikal, watchlist LQ45, data live.",
+  "description": "DR Leo Martin IDX — chart seluruh saham Indonesia (BEI/IDX) ala TradingView: candlestick, indikator teknikal, sinyal Strong Buy/Sell 845 saham, Order Blocks, EMA cross, klasifikasi risiko, PWA + auto-alert.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

@@ -1,11 +1,11 @@
 /* ============================================================
-   IDX Terminal — Service Worker (PWA)
+   DR Leo Martin IDX — Service Worker (PWA)
    - Cache app shell → aplikasi bisa dibuka offline
    - Periodic Background Sync (Chrome Android, best effort):
      memindai sinyal Strong Buy/Sell & Order Block baru di
      latar belakang lalu menampilkan notifikasi sistem
    ============================================================ */
-const CACHE = 'idx-terminal-v4';
+const CACHE = 'idx-terminal-v5';
 const SHELL = [
   '/', '/index.html', '/styles.css', '/app.js', '/ta-lib.js', '/manifest.webmanifest',
   '/vendor/lightweight-charts.js', '/icons/icon-192.png', '/icons/icon-512.png',
@@ -127,7 +127,7 @@ async function bgScan() {
     await idbSet('snap', snap);
 
     for (const body of notes.slice(0, 6)) {
-      await self.registration.showNotification('IDX Terminal', {
+      await self.registration.showNotification('DR Leo Martin IDX', {
         body,
         icon: '/icons/icon-192.png',
         badge: '/icons/icon-192.png',

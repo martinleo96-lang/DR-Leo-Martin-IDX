@@ -1,4 +1,4 @@
-# IDX Terminal — Chart Saham Indonesia ala TradingView
+# DR Leo Martin IDX — Chart Saham Indonesia ala TradingView
 
 Aplikasi web untuk memantau & menganalisis saham Bursa Efek Indonesia (BEI/IDX)
 dengan tampilan dan fitur mirip TradingView.
@@ -95,7 +95,7 @@ Aplikasi ini adalah **PWA** — bisa dipasang ke layar utama dan tampil fullscre
 1. Buka aplikasi di **Chrome Android** (gunakan HTTPS = URL preview, bukan `http://` bare IP).
 2. Ketuk ikon **⬇️ di toolbar** aplikasi, atau menu **⋮ → "Instal aplikasi" / "Add to Home screen"**.
 3. **Izinkan notifikasi** saat diminta (cek site settings bila sebelumnya diblok).
-4. Selesai — buka dari ikon **IDX Terminal** di home screen.
+4. Selesai — buka dari ikon **DR Leo Martin IDX** di home screen.
 
 Cara kerja alert otomatis setelah terinstal:
 

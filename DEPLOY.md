@@ -1,4 +1,4 @@
-# 🚀 Deploy IDX Terminal
+# 🚀 Deploy DR Leo Martin IDX
 
 Aplikasi ini **zero-dependency** (Node.js bawaan saja, tanpa `npm install`).
 Syarat hosting: **Node.js ≥ 18**.
@@ -19,7 +19,7 @@ git clone https://github.com/USERNAME/idx-terminal.git
 cd idx-terminal
 # salin semua isi paket ini ke folder repo, lalu:
 git add -A
-git commit -m "IDX Terminal: rilis awal"
+git commit -m "DR Leo Martin IDX: rilis awal"
 git push origin main
 ```
 
@@ -32,7 +32,7 @@ git push origin main
 ## 2️⃣ Hidupkan 24/7 (agar link & alert jalan terus)
 
 ⚠️ **GitHub Pages TIDAK bisa** menjalankan aplikasi ini — Pages hanya untuk situs statis,
-sedangkan IDX Terminal punya backend Node.js (proxy data Yahoo Finance + API).
+sedangkan DR Leo Martin IDX punya backend Node.js (proxy data Yahoo Finance + API).
 Solusinya: hosting Node gratis yang mengambil kode langsung dari repo GitHub Anda.
 
 ### Render.com (gratis, direkomendasikan)

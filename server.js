@@ -1,7 +1,7 @@
 'use strict';
 /**
  * ============================================================
- *  IDX Terminal — Server
+ *  DR Leo Martin IDX — Server
  *  Aplikasi chart saham Indonesia (mirip TradingView)
  *
  *  - Proxy data Yahoo Finance untuk saham .JK & indeks ^JKSE
@@ -703,7 +703,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`IDX Terminal berjalan di http://0.0.0.0:${PORT}`);
+  console.log(`DR Leo Martin IDX berjalan di http://0.0.0.0:${PORT}`);
   // Mulai memindai seluruh pasar di latar belakang
   ensureScans();
   setInterval(ensureScans, 30000);

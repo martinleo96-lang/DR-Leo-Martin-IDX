@@ -1,5 +1,5 @@
 /* ============================================================
-   IDX Terminal — Frontend
+   DR Leo Martin IDX — Frontend
    Chart saham Indonesia ala TradingView (Lightweight Charts v4)
    + Analisis Teknikal otomatis, Alert harga, Indikator teknikal
    ============================================================ */
@@ -390,7 +390,7 @@ function renderHeaderQuote() {
   c.textContent = `${fmtSigned(q.chg, q.idx)} (${fmtPct(q.pct)})`;
   c.className = 'q-change ' + (q.chg >= 0 ? 'up' : 'down');
   $('#quoteHead').classList.remove('hidden');
-  document.title = `${state.symbol} ${fmtPrice(q.price, q.idx)} • IDX Terminal`;
+  document.title = `${state.symbol} ${fmtPrice(q.price, q.idx)} • DR Leo Martin IDX`;
 
   $('#dSymbol').textContent = state.symbol;
   $('#dName').textContent = state.name || '';
@@ -975,7 +975,7 @@ function fireAlert(a, px) {
   const msg = `🔔 ${a.symbol} ${a.cond === 'gte' ? 'naik menembus' : 'turun menembus'} ${fmtPrice(a.price, idxCls)} — harga kini ${fmtPrice(px, idxCls)}${a.note ? ' • ' + a.note : ''}`;
   toast(msg, 'ok');
   beep();
-  notifyUser(`IDX Terminal — Alert ${a.symbol}`, msg);
+  notifyUser(`DR Leo Martin IDX — Alert ${a.symbol}`, msg);
   pushHistory('harga', msg, a.symbol);
 }
 
@@ -1110,7 +1110,7 @@ function fireObAlert(a, ob) {
   const msg = `🧱 OB ${dir} — ${a.symbol} • zona ${fmtPrice(ob.bottom, idxCls)}–${fmtPrice(ob.top, idxCls)} (${ob.formedTime || ''})${a.note ? ' • ' + a.note : ''}`;
   toast(msg, 'ok');
   beep();
-  notifyUser(`IDX Terminal — Order Block ${a.symbol}`, msg);
+  notifyUser(`DR Leo Martin IDX — Order Block ${a.symbol}`, msg);
   pushHistory('ob', msg, a.symbol, ob.type === 'bull' ? 'Bullish' : 'Bearish');
 }
 
@@ -1446,7 +1446,7 @@ function fireSignalAlert(sym, fromLabel, toLabel) {
   const msg = `${up ? '🚀' : '🔻'} ${sym} kini ${toLabel.toUpperCase()} (sebelumnya ${fromLabel})${rk ? ' • ' + rk : ''}`;
   toast(msg, 'ok');
   beep();
-  notifyUser('IDX Terminal — Sinyal ' + toLabel, msg);
+  notifyUser('DR Leo Martin IDX — Sinyal ' + toLabel, msg);
   pushHistory('sinyal', msg, sym, toLabel);
 }
 
@@ -1610,7 +1610,7 @@ function fireObScan(sym, ob, count) {
   if (count < 5) { // batasi 5 notifikasi penuh per siklus
     toast(msg, 'ok');
     beep();
-    notifyUser(`IDX Terminal — Order Block ${sym}`, msg);
+    notifyUser(`DR Leo Martin IDX — Order Block ${sym}`, msg);
   }
   return count + 1;
 }
@@ -1688,7 +1688,7 @@ function fireZoneEntry(ev, i) {
   const bull = ev.st === 'in-bull';
   const msg = `🎯 ${ev.sym} memasuki zona OB ${bull ? 'BULLISH 🟢' : 'BEARISH 🔴'} (${fmtPrice(ev.bottom, idxCls)}–${fmtPrice(ev.top, idxCls)}) — area ${bull ? 'entry BUY' : 'entry SELL'}`;
   pushHistory('zona', msg, ev.sym, bull ? 'Bullish' : 'Bearish');
-  if (i < 5) setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser('IDX Terminal — Zona Entry ' + ev.sym, msg); }, i * 650);
+  if (i < 5) setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser('DR Leo Martin IDX — Zona Entry ' + ev.sym, msg); }, i * 650);
 }
 
 /* 💎 Konfluensi: Strong Buy/Sell + OB segar (<5 hari) searah */
@@ -1731,7 +1731,7 @@ function fireConfluence(ev, i) {
   const up = ev.label === 'Strong Buy';
   const msg = `💎 KONFLUENSI ${up ? 'BULLISH' : 'BEARISH'} — ${ev.sym} ${ev.label.toUpperCase()} + OB ${up ? 'bullish' : 'bearish'} segar ${ev.ob.formedTime} (zona ${fmtPrice(ev.ob.bottom)}–${fmtPrice(ev.ob.top)})`;
   pushHistory('konflu', msg, ev.sym, ev.label);
-  if (i < 3) setTimeout(() => { toast(msg, 'ok'); beep(); setTimeout(beep, 350); notifyUser('IDX Terminal — Konfluensi ' + ev.sym, msg); }, i * 700);
+  if (i < 3) setTimeout(() => { toast(msg, 'ok'); beep(); setTimeout(beep, 350); notifyUser('DR Leo Martin IDX — Konfluensi ' + ev.sym, msg); }, i * 700);
 }
 
 /* ⚡ EMA cross 3/7 BUY · 2/6 SELL — mengikuti timeframe chart */
@@ -1778,7 +1778,7 @@ function fireEmaX(dir, time, close, tfI, i) {
   const idxCls = String(state.symbol).startsWith('^');
   const msg = `⚡ ${state.symbol} — EMA ${buy ? '3 cross NAIK 7' : '2 cross TURUN 6'} → ${dir} @ ${fmtPrice(close, idxCls)} (TF ${tfI})`;
   pushHistory('emax', msg, state.symbol, dir);
-  setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser(`IDX Terminal — EMA Cross ${dir} ${state.symbol}`, msg); }, i * 600);
+  setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser(`DR Leo Martin IDX — EMA Cross ${dir} ${state.symbol}`, msg); }, i * 600);
 }
 
 /* ⚡ EMA cross harian SELURUH PASAR — dari pemindai server (/api/signals)
@@ -1819,7 +1819,7 @@ function fireMx(h, i) {
   const idxCls = String(h.sym).startsWith('^');
   const msg = `⚡ ${h.sym}${rk} — EMA ${buy ? '3 cross NAIK 7' : '2 cross TURUN 6'} → ${h.dir} @ ${fmtPrice(h.price, idxCls)} (harian)`;
   pushHistory('emax', msg, h.sym, h.dir);
-  if (i < 5) setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser(`IDX Terminal — EMA Cross ${h.dir} ${h.sym}`, msg); }, i * 600);
+  if (i < 5) setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser(`DR Leo Martin IDX — EMA Cross ${h.dir} ${h.sym}`, msg); }, i * 600);
 }
 
 /* 📋 Rekap harian 09.00 WIB (jendela 08:55–09:30, sekali sehari) */
@@ -1853,7 +1853,7 @@ function sendDailyRecap() {
   pushHistory('rekap', '📋 Rekap harian: ' + body.replace(/\n/g, ' • '), null, null);
   toast('📋 Rekap harian 09.00 WIB terkirim — buka Riwayat Notifikasi.', 'ok');
   beep();
-  notifyUser('IDX Terminal — Rekap Harian 09.00 WIB', body);
+  notifyUser('DR Leo Martin IDX — Rekap Harian 09.00 WIB', body);
 }
 
 /* ============================================================
@@ -1884,7 +1884,7 @@ function initPwa() {
     deferredInstall = null;
     const b = $('#btnInstall');
     if (b) b.classList.add('hidden');
-    toast('✅ IDX Terminal terpasang — buka dari layar utama Anda.', 'ok');
+    toast('✅ DR Leo Martin IDX terpasang — buka dari layar utama Anda.', 'ok');
   });
   if (installBtn) installBtn.addEventListener('click', async () => {
     if (!deferredInstall) {
