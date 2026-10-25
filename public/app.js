@@ -1230,12 +1230,24 @@ function tickClock() {
    ============================================================ */
 let signals = [];
 let sigFilter = 'Semua';
+let riskFilter = 'Semua';
 const SIG_ORDER = ['Strong Buy', 'Buy', 'Neutral', 'Sell', 'Strong Sell'];
 const SIG_ABBR = { 'Strong Buy': 'SB', 'Buy': 'B', 'Neutral': 'N', 'Sell': 'S', 'Strong Sell': 'SS' };
 const SIG_CLS = {
   'Strong Buy': 'sg-strong-buy', 'Buy': 'sg-buy', 'Neutral': 'sg-neutral',
   'Sell': 'sg-sell', 'Strong Sell': 'sg-strong-sell',
 };
+const RK_ORDER = ['unggulan', 'reguler', 'highrisk', 'gorengan'];
+const RK_META = {
+  unggulan: { icon: '💎', label: 'Unggulan', cls: 'rk-ung' },
+  reguler: { icon: '✅', label: 'Reguler', cls: 'rk-reg' },
+  highrisk: { icon: '⚠️', label: 'High Risk', cls: 'rk-hi' },
+  gorengan: { icon: '🔥', label: 'Gorengan', cls: 'rk-gor' },
+};
+function rkIcon(sym) {
+  const s = signals.find(x => String(x.symbol) === String(sym));
+  return s && s.risk && RK_META[s.risk] ? RK_META[s.risk].icon : '';
+}
 
 function showWlTab(name) {
   document.querySelectorAll('.wl-tabs button').forEach(b => b.classList.toggle('active', b.dataset.wl === name));
@@ -1253,6 +1265,12 @@ $('#sigSummary').addEventListener('click', (e) => {
   sigFilter = chip.dataset.f;
   renderSignals();
 });
+$('#sigRisk').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  riskFilter = chip.dataset.r;
+  renderSignals();
+});
 $('#sigList').addEventListener('click', (e) => {
   const row = e.target.closest('.sg-row');
   if (row) onSelectSymbol(row.dataset.sym, row.dataset.name);
@@ -1261,7 +1279,7 @@ $('#sigList').addEventListener('click', (e) => {
 async function loadSignals(force) {
   const list = $('#sigList');
   if (!signals.length) {
-    list.innerHTML = '<div class="wl-skel">Menganalisis 52 simbol dengan 25 indikator…<br/>(±5–10 detik saat pertama kali)</div>';
+    list.innerHTML = '<div class="wl-skel">Menganalisis 845+ simbol dengan 25 indikator…<br/>(lapis likuid ±1 menit saat pertama kali)</div>';
   }
   try {
     const r = await fetch(force ? '/api/signals?force=1' : '/api/signals');
@@ -1274,6 +1292,21 @@ async function loadSignals(force) {
     updateWlSigDots();
     const el = $('#sigUpdated');
     if (el) el.textContent = wibNow().slice(0, 8);
+    // Info progres pemindaian seluruh pasar + jadwalkan refresh cepat selama scan berjalan
+    const inf = $('#sigScanInfo');
+    const scanning = (j.tierA && j.tierA.running) || (j.tierB && j.tierB.running);
+    if (inf) {
+      inf.textContent = j.total
+        ? `📡 Terpindai ${j.scanned}/${j.total} simbol • likuid ${j.tierA.done}/${j.tierA.total} • semua saham ${j.tierB.done}/${j.tierB.total}${scanning ? ' — memindai…' : ''}`
+        : '';
+    }
+    clearTimeout(loadSignals._scanT);
+    if (scanning && document.visibilityState === 'visible') {
+      loadSignals._scanT = setTimeout(() => loadSignals(false), 15000);
+    }
+    if (!signals.length && scanning) {
+      list.innerHTML = `<div class="wl-skel">Memindai pasar… ${j.scanned}/${j.total} simbol<br/>(hasil muncul bertahap)</div>`;
+    }
   } catch (e) {
     if (!signals.length) list.innerHTML = '<div class="wl-skel">Gagal memuat sinyal. ' + escapeHtml(e.message || '') + '</div>';
   }
@@ -1292,15 +1325,29 @@ function updateWlSigDots() {
 }
 
 function renderSignals() {
+  // --- chip kelas risiko ---
+  const riskEl = $('#sigRisk');
+  if (riskEl) {
+    const rkCounts = Object.fromEntries(RK_ORDER.map(k => [k, 0]));
+    for (const s of signals) if (s.risk && rkCounts[s.risk] != null) rkCounts[s.risk]++;
+    riskEl.innerHTML =
+      [`<button class="chip all ${riskFilter === 'Semua' ? 'active' : ''}" data-r="Semua">Semua kelas</button>`]
+        .concat(RK_ORDER.map(k =>
+          `<button class="chip ${RK_META[k].cls} ${riskFilter === k ? 'active' : ''}" data-r="${k}" title="${RK_META[k].label}">${RK_META[k].icon} ${RK_META[k].label} <b>${rkCounts[k]}</b></button>`
+        )).join('');
+  }
+
+  // --- kelompokkan per label, saring kelas risiko bila dipilih ---
+  const pool = riskFilter === 'Semua' ? signals : signals.filter(s => s.risk === riskFilter);
   const groups = { 'Strong Buy': [], 'Buy': [], 'Neutral': [], 'Sell': [], 'Strong Sell': [] };
-  for (const s of signals) (groups[s.label] || groups['Neutral']).push(s);
+  for (const s of pool) (groups[s.label] || groups['Neutral']).push(s);
   for (const k of SIG_ORDER) {
     groups[k].sort((a, b) => (k === 'Sell' || k === 'Strong Sell' ? a.score - b.score : b.score - a.score));
   }
 
   const counts = Object.fromEntries(SIG_ORDER.map(k => [k, groups[k].length]));
   $('#sigSummary').innerHTML =
-    [`<button class="chip all ${sigFilter === 'Semua' ? 'active' : ''}" data-f="Semua">Semua <b>${signals.length}</b></button>`]
+    [`<button class="chip all ${sigFilter === 'Semua' ? 'active' : ''}" data-f="Semua">Semua <b>${pool.length}</b></button>`]
       .concat(SIG_ORDER.map(k =>
         `<button class="chip ${SIG_CLS[k]} ${sigFilter === k ? 'active' : ''}" data-f="${k}">${k} <b>${counts[k]}</b></button>`
       )).join('');
@@ -1322,10 +1369,14 @@ function renderSignals() {
       const idxCls = String(s.symbol).startsWith('^');
       const up = (s.changePct || 0) >= 0;
       const w = Math.round(((s.score + 1) / 2) * 100);
+      const rk = s.risk && RK_META[s.risk];
+      const rkBadge = rk
+        ? `<span class="rk ${rk.cls}" title="${rk.icon} ${rk.label}${s.riskNote ? ' — ' + escapeHtml(s.riskNote) : ''}${s.sector ? ' • ' + escapeHtml(s.sector) : ''}">${rk.icon}</span>`
+        : (idxCls ? '<span class="rk rk-idx" title="Indeks">📊</span>' : '');
       html +=
         `<div class="sg-row" data-sym="${escapeHtml(s.symbol)}" data-name="${escapeHtml(s.name || '')}">` +
-        `<div class="sg-l"><b>${escapeHtml(s.symbol)}${recentMark(s.symbol)}</b><span>${escapeHtml(s.name || '')}</span></div>` +
-        `<div class="sg-bar" title="Skor ${fmtNum(s.score, 2)} • Beli ${s.buys} / Jual ${s.sells} / Netral ${s.neutrals}"><i class="${SIG_CLS[k]}" style="width:${w}%"></i></div>` +
+        `<div class="sg-l"><b>${rkBadge}${escapeHtml(s.symbol)}${recentMark(s.symbol)}</b><span>${escapeHtml(s.name || '')}</span></div>` +
+        `<div class="sg-bar" title="Skor ${fmtNum(s.score, 2)} • Beli ${s.buys} / Jual ${s.sells} / Netral ${s.neutrals}${s.sector ? ' • ' + escapeHtml(s.sector) : ''}"><i class="${SIG_CLS[k]}" style="width:${w}%"></i></div>` +
         `<div class="sg-r"><div class="sg-price">${s.price != null ? fmtPrice(s.price, idxCls) : '—'}</div>` +
         `<div class="sg-chg ${up ? 'up' : 'down'}">${fmtPct(s.changePct)}</div></div>` +
         `</div>`;
@@ -1390,7 +1441,8 @@ function sigMarkChanged(sym, label) { recentSigChanges.set(sym, { ts: Date.now()
 
 function fireSignalAlert(sym, fromLabel, toLabel) {
   const up = toLabel === 'Strong Buy';
-  const msg = `${up ? '🚀' : '🔻'} ${sym} kini ${toLabel.toUpperCase()} (sebelumnya ${fromLabel})`;
+  const rk = rkIcon(sym);
+  const msg = `${up ? '🚀' : '🔻'} ${sym} kini ${toLabel.toUpperCase()} (sebelumnya ${fromLabel})${rk ? ' • ' + rk : ''}`;
   toast(msg, 'ok');
   beep();
   notifyUser('IDX Terminal — Sinyal ' + toLabel, msg);

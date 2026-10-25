@@ -92,6 +92,18 @@ const STOCKS = [
   { symbol: 'GIAA', name: 'Garuda Indonesia (Persero) Tbk' },
 ];
 
+/* ------------------------------------------------------------
+ * SELURUH SAHAM IDX (845 emiten) + subset likuid (174)
+ * Sumber daftar: symbols.js (kurasi dari github.com/sendiptjr/idx-screener)
+ *  - TIER_A: indeks + 174 saham likuid → dipindai tiap 10 menit
+ *  - TIER_B: sisa seluruh emiten     → dipindai tiap 60 menit
+ * ---------------------------------------------------------- */
+const { UNIVERSE, LIQUID } = require('./symbols.js');
+const UNI_MAP = new Map(UNIVERSE.map(u => [u.symbol, u]));
+const LIQUID_ENTRIES = UNIVERSE.filter(u => LIQUID.has(u.symbol));
+const TIER_A = [...INDICES.map(i => ({ symbol: i.symbol, name: i.name, index: true })), ...LIQUID_ENTRIES];
+const TIER_B = UNIVERSE.filter(u => !LIQUID.has(u.symbol));
+
 /* Harga dasar untuk mode simulasi (hanya dipakai bila Yahoo Finance tidak bisa dihubungi) */
 const BASE_PRICE = {
   BBCA: 10100, BBRI: 4550, BMRI: 6900, BBNI: 5100, BRIS: 2800, ARTO: 2900, BBYB: 1500,
@@ -345,21 +357,29 @@ async function handleSearch(u, res) {
     );
     const quotes = (data.quotes || [])
       .filter(x => x.exchange === 'JKT' || String(x.symbol).endsWith('.JK') || String(x.symbol).startsWith('^JK'))
-      .map(x => ({
-        symbol: x.symbol,
-        name: x.longname || x.shortname || x.symbol,
-        type: x.quoteType === 'INDEX' ? 'Indeks' : x.quoteType === 'ETF' ? 'ETF' : 'Saham',
-        exchange: x.exchDisp || x.exchange || 'IDX',
-      }));
+      .map(x => {
+        const bare = String(x.symbol).replace(/\.JK$/, '');
+        const uni = UNI_MAP.get(bare);
+        return {
+          symbol: x.symbol,
+          name: uni ? uni.name : (x.longname || x.shortname || x.symbol),
+          type: x.quoteType === 'INDEX' ? 'Indeks' : x.quoteType === 'ETF' ? 'ETF' : 'Saham',
+          exchange: x.exchDisp || x.exchange || 'IDX',
+          sector: uni ? uni.sector : null,
+        };
+      });
     if (quotes.length) return sendJson(res, 200, { quotes });
     throw new Error('kosong');
   } catch (e) {
-    // Fallback: cari di daftar lokal
+    // Fallback: cari di daftar lokal (seluruh 845 emiten IDX)
     const ql = q.toLowerCase();
-    const local = [...INDICES, ...STOCKS]
+    const local = [
+      ...INDICES.map(i => ({ symbol: i.symbol, name: i.name, sector: null })),
+      ...UNIVERSE,
+    ]
       .filter(s => s.symbol.toLowerCase().includes(ql) || s.name.toLowerCase().includes(ql))
-      .slice(0, 12)
-      .map(s => ({ symbol: s.symbol, name: s.name, type: s.symbol.startsWith('^') ? 'Indeks' : 'Saham', exchange: 'IDX (lokal)' }));
+      .slice(0, 20)
+      .map(s => ({ symbol: s.symbol, name: s.name, type: s.symbol.startsWith('^') ? 'Indeks' : 'Saham', exchange: 'IDX (lokal)', sector: s.sector || null }));
     sendJson(res, 200, { quotes: local });
   }
 }
@@ -477,6 +497,9 @@ async function getSignal(entry) {
     const closes = bars.map(b => b.close);
     const price = meta.regularMarketPrice != null ? meta.regularMarketPrice : closes[closes.length - 1];
     const prev = closes.length > 1 ? closes[closes.length - 2] : price;
+    // Klasifikasi risiko (indeks tidak diklasifikasikan)
+    const isIdx = String(entry.symbol).startsWith('^');
+    const risk = isIdx ? null : TALib.classifyRisk(bars, { liquid: LIQUID.has(entry.symbol) });
     return {
       symbol: entry.symbol,
       name: entry.name,
@@ -487,6 +510,9 @@ async function getSignal(entry) {
       buys: rating.b, sells: rating.s, neutrals: rating.n, total: rating.total,
       oscScore: +rating.oscS.score.toFixed(3),
       maScore: +rating.maS.score.toFixed(3),
+      sector: entry.sector || null,
+      risk: risk ? risk.code : null,
+      riskNote: risk ? risk.note : null,
       synthetic: false,
     };
   } catch (e) {
@@ -494,12 +520,56 @@ async function getSignal(entry) {
   }
 }
 
+/* ------------------------------------------------------------
+ * Pemindai dua lapis (berjalan di latar belakang):
+ *   Tier A (indeks + 174 likuid) tiap 10 menit
+ *   Tier B (±671 emiten lainnya) tiap 60 menit
+ * /api/signals melayani hasil terakhir secara instan dari cache.
+ * ---------------------------------------------------------- */
+const SCAN = {
+  rows: new Map(), // symbol -> row hasil getSignal
+  A: { ts: 0, done: 0, total: TIER_A.length, running: false, ttl: 10 * 60000 },
+  B: { ts: 0, done: 0, total: TIER_B.length, running: false, ttl: 60 * 60000 },
+};
+function scanTier(key, list) {
+  const t = SCAN[key];
+  if (t.running) return;
+  t.running = true;
+  t.done = 0;
+  mapLimit(list, 6, async (entry) => {
+    try {
+      const row = await getSignal(entry);
+      SCAN.rows.set(entry.symbol, row);
+    } catch (e) {}
+    t.done++;
+  }).catch(() => {}).then(() => {
+    t.running = false;
+    t.ts = Date.now();
+  });
+}
+function ensureScans() {
+  const now = Date.now();
+  if (now - SCAN.A.ts > SCAN.A.ttl) scanTier('A', TIER_A);
+  if (now - SCAN.B.ts > SCAN.B.ttl) scanTier('B', TIER_B);
+}
+
 async function handleSignals(u, res) {
   if (u.searchParams.get('force') === '1') {
     for (const k of [...cache.keys()]) if (k.startsWith('sig:')) cache.delete(k);
+    SCAN.A.ts = 0; SCAN.B.ts = 0;
   }
-  const rows = await mapLimit([...INDICES, ...STOCKS], 6, getSignal);
-  sendJson(res, 200, { data: rows, ts: Date.now() });
+  const tierParam = String(u.searchParams.get('tier') || '').toLowerCase();
+  ensureScans();
+  let rows = [...SCAN.rows.values()];
+  if (tierParam === 'a') rows = rows.filter(r => r.symbol.startsWith('^') || LIQUID.has(r.symbol.replace(/\.JK$/, '')));
+  sendJson(res, 200, {
+    data: rows,
+    ts: Date.now(),
+    total: TIER_A.length + TIER_B.length,
+    scanned: SCAN.rows.size,
+    tierA: { done: SCAN.A.done, total: SCAN.A.total, running: SCAN.A.running, ts: SCAN.A.ts },
+    tierB: { done: SCAN.B.done, total: SCAN.B.total, running: SCAN.B.running, ts: SCAN.B.ts },
+  });
 }
 
 /* ------------------------------------------------------------
@@ -556,10 +626,10 @@ async function getOrderBlocksFor(entry) {
 async function handleOrderBlocks(u, res) {
   let syms = String(u.searchParams.get('symbols') || '')
     .split(',').map(s => s.trim().toUpperCase()).filter(Boolean).slice(0, 60);
-  // Tanpa param → semua simbol (dipakai PWA background sync)
-  if (!syms.length) syms = [...INDICES, ...STOCKS].map(s => s.symbol);
-  const known = new Map([...INDICES, ...STOCKS].map(s => [s.symbol, s]));
-  const rows = await mapLimit(syms, 6, s => getOrderBlocksFor(known.get(s) || { symbol: s, name: s }));
+  // Tanpa param → indeks + 174 saham likuid (dipakai PWA background sync)
+  if (!syms.length) syms = TIER_A.map(s => s.symbol);
+  const known = new Map(TIER_A.map(s => [s.symbol, s]));
+  const rows = await mapLimit(syms, 6, s => getOrderBlocksFor(known.get(s) || { symbol: s, name: UNI_MAP.get(s.replace(/\.JK$/, ''))?.name || s }));
   sendJson(res, 200, { data: rows, ts: Date.now() });
 }
 
@@ -630,4 +700,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`IDX Terminal berjalan di http://0.0.0.0:${PORT}`);
+  // Mulai memindai seluruh pasar di latar belakang
+  ensureScans();
+  setInterval(ensureScans, 30000);
 });

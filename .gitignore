@@ -2,3 +2,5 @@ node_modules/
 *.log
 .DS_Store
 docs/qr-install.png
+idx-terminal.zip
+public/idx-terminal.zip

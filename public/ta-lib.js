@@ -412,10 +412,79 @@ function detectOrderBlocks(bars, opts) {
   return res;
 }
 
+/* ============================================================
+   KLASIFIKASI RISIKO SAHAM INDONESIA (dari bar harian 1 tahun)
+     💎 unggulan : likuid & stabil (anggota daftar likuid kurasi)
+     ⚠️ high risk: volatilitas tinggi (ATR% besar / sering ARA-ARB)
+     🔥 gorengan : harga rendah, tipis, atau lonjakan volume tak wajar
+     ✅ reguler  : di luar kriteria di atas
+   ============================================================ */
+function medianOf(arr) {
+  const a = arr.filter(v => isFinite(v)).sort((x, y) => x - y);
+  const n = a.length;
+  return n ? (n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2) : 0;
+}
+function classifyRisk(bars, opts = {}) {
+  if (!bars || bars.length < 20) return { code: 'reguler', note: 'Data terbatas' };
+  const n = bars.length;
+  const closes = bars.map(b => b.close);
+  const price = closes[n - 1];
+  // ATR% Wilder 14
+  let atr = 0;
+  if (n > 15) {
+    const tr = (i) => Math.max(
+      bars[i].high - bars[i].low,
+      Math.abs(bars[i].high - bars[i - 1].close),
+      Math.abs(bars[i].low - bars[i - 1].close)
+    );
+    for (let i = n - 14; i < n; i++) atr += tr(i);
+    atr /= 14;
+  }
+  const atrPct = price ? (atr / price) * 100 : 0;
+  // median nilai transaksi harian (Rp) 20 hari terakhir
+  const avgVal = medianOf(bars.slice(-20).map(b => b.close * (b.volume || 0)));
+  // hari tanpa volume dalam 90 hari terakhir
+  const last90 = bars.slice(-90);
+  const zeroVolPct = (last90.filter(b => !b.volume).length / last90.length) * 100;
+  // rasio lonjakan volume (maks vs median) 60 hari terakhir
+  const last60 = bars.slice(-60);
+  const medV = Math.max(1, medianOf(last60.map(b => b.volume || 0)));
+  const spike = Math.max(...last60.map(b => b.volume || 0)) / medV;
+  // jumlah hari ARA/ARB (|perubahan| >= 12%) dalam setahun data
+  let ara = 0;
+  for (let i = 1; i < n; i++) {
+    const chg = ((closes[i] - closes[i - 1]) / closes[i - 1]) * 100;
+    if (Math.abs(chg) >= 12) ara++;
+  }
+  const m = {
+    price,
+    avgVal: Math.round(avgVal),
+    atrPct: +atrPct.toFixed(2),
+    zeroVolPct: +zeroVolPct.toFixed(1),
+    ara,
+    spike: +spike.toFixed(1),
+  };
+  // Saham dengan nilai transaksi ≥ Rp 5 M/hari terlalu likuid untuk disebut gorengan
+  const sangatLikuid = avgVal >= 5e9;
+  if (!sangatLikuid && (
+    price <= 100 ||                      // saham sen/receh
+    avgVal < 1e8 ||                      // nilai transaksi < Rp 100 jt/hari (saham tidur)
+    zeroVolPct >= 25 ||                  // sering tidak ada transaksi sama sekali
+    (price <= 200 && avgVal < 5e8) ||    // murah + tipis
+    (spike >= 20 && price <= 300)        // lonjakan volume tak wajar pada saham kecil
+  ))
+    return { code: 'gorengan', note: 'Harga rendah / likuiditas tipis / lonjakan volume tak wajar', ...m };
+  if (atrPct >= 6 || ara >= 6)
+    return { code: 'highrisk', note: `Volatilitas tinggi (ATR ${m.atrPct}%, ARA/ARB ${ara}×)`, ...m };
+  if (opts.liquid && sangatLikuid && atrPct <= 5.5)
+    return { code: 'unggulan', note: 'Saham likuid & mapan (kelompok unggulan)', ...m };
+  return { code: 'reguler', note: 'Saham reguler', ...m };
+}
+
 return {
   emaArr, rsiArr, macdArr,
   smaOn, emaOn, wmaOn, vwmaOn, hullOn,
   stochRaw, cciRaw, aoRaw, willrRaw, bbpRaw, uoRaw, adxRaw,
-  computeRatings, labelOf, detectOrderBlocks,
+  computeRatings, labelOf, detectOrderBlocks, classifyRisk,
 };
 });

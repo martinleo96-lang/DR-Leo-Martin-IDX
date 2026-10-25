@@ -18,11 +18,18 @@ dengan tampilan dan fitur mirip TradingView.
   **Strong Sell → Strong Buy** + tabel sinyal dari 25 indikator —
   10 osilator (RSI, Stochastic, CCI, ADX, Awesome Osc, Momentum, MACD, Williams %R,
   Bull Bear Power, Ultimate Osc) + 15 moving average (EMA/SMA 10–200, VWMA, Hull MA, Ichimoku Base)
-- **Pemindai Sinyal / Signal Scanner** (tab *Sinyal* di watchlist): seluruh 52 simbol
-  (saham + indeks) dianalisis otomatis dan dikelompokkan menjadi **Strong Buy / Buy /
-  Neutral / Sell / Strong Sell** — lengkap dengan skor, bar kekuatan sinyal, harga &
-  perubahan, chip filter, dan badge SB/B/N/S/SS di setiap baris watchlist
-  (dihitung server via `GET /api/signals`, cache 5 menit)
+- **Pemindai Sinyal / Signal Scanner** (tab *Sinyal* di watchlist): **seluruh
+  845 saham IDX + 2 indeks** dianalisis otomatis dan dikelompokkan menjadi **Strong Buy /
+  Buy / Neutral / Sell / Strong Sell** — lengkap dengan skor, bar kekuatan sinyal, harga &
+  perubahan, chip filter, dan badge SB/B/N/S/SS di watchlist
+  (dihitung server via `GET /api/signals`; pemindaian dua lapis di latar belakang —
+  176 simbol likuid tiap 10 menit, 671 sisanya tiap 60 menit)
+- **Klasifikasi risiko tiap saham**: 💎 **Unggulan** (likuid & mapan), ✅ **Reguler**,
+  ⚠️ **High Risk** (ATR ≥ 6% / sering ARA-ARB), 🔥 **Gorengan** (harga rendah, likuiditas
+  tipis, atau lonjakan volume tak wajar) — dihitung dari data harian 1 tahun
+  (harga, nilai transaksi median 20 hari, ATR, hari tanpa volume, frekuensi ARA/ARB,
+  rasio lonjakan volume), tampil sebagai badge + chip filter di tab Sinyal
+- **Pencarian seluruh saham IDX** (845 emiten + sektor) via kotak pencarian
 - **Alert sinyal otomatis (rutin tiap 5 menit)**: setiap kali ada saham yang *berubah menjadi*
   **Strong Buy / Strong Sell**, aplikasi langsung memberi notifikasi (bunyi + toast + notifikasi
   browser) — bisa dimatikan lewat checkbox di tab Sinyal, anti-spam 6 jam, dan saham yang
@@ -67,7 +74,8 @@ Port bisa diubah: `PORT=8080 node server.js`
 
 ```
 idx-terminal/
-├── server.js                 # backend: proxy Yahoo Finance + static host + fallback simulasi
+├── server.js                 # backend: proxy Yahoo Finance + pemindai 2 lapis + fallback simulasi
+├── symbols.js                # daftar 845 emiten IDX + 174 likuid (dengan sektor)
 ├── public/
 │   ├── index.html            # layout aplikasi (+ meta PWA)
 │   ├── styles.css            # tema gelap ala TradingView

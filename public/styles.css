@@ -510,6 +510,37 @@ button, input, select { font-family: inherit; }
 .al-form #priceFields { display: flex; flex-direction: column; gap: 10px; }
 
 /* ---------- Auto-alert sinyal & riwayat ---------- */
+/* ===== Klasifikasi risiko saham ===== */
+.rk {
+  display: inline-block;
+  font-size: 11px;
+  margin-right: 4px;
+  vertical-align: baseline;
+  cursor: help;
+}
+.rk-ung { filter: drop-shadow(0 0 3px rgba(41, 98, 255, .6)); }
+.rk-hi { filter: drop-shadow(0 0 3px rgba(255, 152, 0, .6)); }
+.rk-gor { filter: drop-shadow(0 0 3px rgba(239, 83, 80, .7)); }
+.rk-idx { opacity: .8; }
+
+.sig-risk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 2px;
+}
+.sig-risk .chip.rk-ung.active { border-color: #2962ff; background: rgba(41, 98, 255, .18); }
+.sig-risk .chip.rk-reg.active { border-color: #26a69a; background: rgba(38, 166, 154, .18); }
+.sig-risk .chip.rk-hi.active { border-color: #ff9800; background: rgba(255, 152, 0, .18); }
+.sig-risk .chip.rk-gor.active { border-color: #ef5350; background: rgba(239, 83, 80, .18); }
+
+.sig-scaninfo {
+  font-size: 10px;
+  color: #787b86;
+  padding: 2px 10px 4px;
+  min-height: 14px;
+}
+
 .sig-settings {
   padding: 8px 12px; border-bottom: 1px solid var(--border);
   font-size: 10.5px; color: var(--muted); flex: 0 0 auto; line-height: 1.5;
