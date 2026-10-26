@@ -14,3 +14,8 @@ not_found_handling = "single-page-application"
 # Pemindai tiap 2 menit (batch kecil, hemat CPU free)
 [triggers]
 crons = ["*/2 * * * *"]
+
+# Namespace KV milik akun (status snapshot pemindai) — jangan diganti
+[[kv_namespaces]]
+binding = "SNAP"
+id = "a3d34c223d2443c2852a3bd3298c03ce"
