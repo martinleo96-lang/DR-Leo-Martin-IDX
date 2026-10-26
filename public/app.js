@@ -1340,121 +1340,6 @@ $('#mvWrap').addEventListener('click', (e) => {
   if (it) onSelectSymbol(it.dataset.sym, it.dataset.name);
 });
 
-/* ---- KOTAK ALERT EMA CROSS — pola bawaan app: BUY 3×7 ▲ · SELL 2×6 ▼ ---- */
-let emxCfg = { fastB: 3, slowB: 7, fastS: 2, slowS: 6 };
-try {
-  const saved = JSON.parse(localStorage.getItem('idx-terminal-emaxcfg') || 'null');
-  if (saved) {
-    // migrasi format lama {fast,slow} → BUY pair pakai itu, SELL tetap 2×6
-    if (saved.fastB) emxCfg = { ...emxCfg, ...saved };
-    else if (saved.fast) emxCfg = { fastB: saved.fast, slowB: saved.slow, fastS: 2, slowS: 6 };
-  }
-} catch (e) {}
-let emxData = null;
-
-function wireEmaxBox() {
-  const body = $('#emxBody');
-  if (!body) return;
-  const syncLabels = () => {
-    $('#emxFastB').value = emxCfg.fastB; $('#emxSlowB').value = emxCfg.slowB;
-    $('#emxFastS').value = emxCfg.fastS; $('#emxSlowS').value = emxCfg.slowS;
-    $('#emxCfg').textContent = emxCfg.fastB + '×' + emxCfg.slowB + ' · ' + emxCfg.fastS + '×' + emxCfg.slowS;
-    const key = [emxCfg.fastB, emxCfg.slowB, emxCfg.fastS, emxCfg.slowS].join(',');
-    $all('#emxPresets button').forEach(b => b.classList.toggle('on', b.dataset.p === key));
-  };
-  syncLabels();
-  emxApply._sync = syncLabels;
-
-  $('#emxToggle').addEventListener('click', () => {
-    body.classList.toggle('hidden');
-    $('#emxToggle').querySelector('.emx-car').textContent = body.classList.contains('hidden') ? '▾' : '▴';
-    if (!body.classList.contains('hidden') && emxData == null) loadEmaxCross();
-  });
-  $('#emxPresets').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-p]');
-    if (!b) return;
-    const [fb, sb, fs, ss] = b.dataset.p.split(',').map(Number);
-    $('#emxFastB').value = fb; $('#emxSlowB').value = sb;
-    $('#emxFastS').value = fs; $('#emxSlowS').value = ss;
-    emxApply();
-  });
-  $('#emxApply').addEventListener('click', () => emxApply());
-  $('#emxList').addEventListener('click', (e) => {
-    const it = e.target.closest('.emx-item');
-    if (it) onSelectSymbol(it.dataset.sym, it.dataset.name);
-  });
-}
-
-async function emxApply() {
-  const num = (id, d) => Math.max(2, parseInt($(id).value, 10) || d);
-  const fb = num('#emxFastB', 3), sb = num('#emxSlowB', 7);
-  const fs = num('#emxFastS', 2), ss = num('#emxSlowS', 6);
-  if (fb >= sb) { notify('BUY: EMA cepat harus < EMA lambat'); return; }
-  if (fs >= ss) { notify('SELL: EMA cepat harus < EMA lambat'); return; }
-  emxCfg = { fastB: fb, slowB: sb, fastS: fs, slowS: ss };
-  try { localStorage.setItem('idx-terminal-emaxcfg', JSON.stringify(emxCfg)); } catch (e) {}
-  if (emxApply._sync) emxApply._sync();
-  emxData = null;
-  await loadEmaxCross();
-}
-
-async function loadEmaxCross() {
-  const list = $('#emxList');
-  list.innerHTML = `<div class="wl-skel">Memindai BUY ${emxCfg.fastB}×${emxCfg.slowB} · SELL ${emxCfg.fastS}×${emxCfg.slowS} di seluruh pasar…</div>`;
-  try {
-    const qs = `fastB=${emxCfg.fastB}&slowB=${emxCfg.slowB}&fastS=${emxCfg.fastS}&slowS=${emxCfg.slowS}`;
-    const r = await fetch('/api/emax?' + qs);
-    const j = await r.json();
-    if (j.error) throw new Error(j.error);
-    emxData = j.data;
-    renderEmaxList(j.coverage);
-  } catch (e) {
-    list.innerHTML = '<div class="wl-error">Gagal memindai: ' + escapeHtml(String(e.message || e)) + '</div>';
-  }
-}
-
-function renderEmaxList(coverage) {
-  const list = $('#emxList');
-  if (!emxData || !emxData.length) {
-    list.innerHTML = '<div class="al-empty">Tidak ada cross ' + emxCfg.fast + '×' + emxCfg.slow +
-      ' dalam 5 hari bursa terakhir.' +
-      (coverage && coverage < 800 ? '<br/><small>Pemindai pasar masih berjalan (baru ' + coverage + ' saham terpindai) — coba Terapkan lagi sebentar.</small>' : '') +
-      '</div>';
-    return;
-  }
-  const riskOf = new Map(signals.map(s => [s.symbol, s.risk]));
-  const whenTxt = (o) => {
-    let tgl = '—';
-    if (o.t) {
-      const d = new Date(o.t * 1000);
-      tgl = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
-    }
-    const ago = o.age === 0 ? '🔥 hari ini' : o.age === 1 ? 'kemarin' : o.age + ' hari lalu';
-    return tgl + ' · ' + ago;
-  };
-  const grp = (title, cls, arr) => {
-    if (!arr.length) return '';
-    return `<div class="sg-head ${cls}"><span class="dot"></span>${title} <span class="n">${arr.length}</span></div>` +
-      arr.map(o => {
-        const rk = riskOf.get(o.symbol); const meta = rk && RK_META[rk];
-        const badge = meta ? `<span class="rk ${meta.cls}" title="${meta.label}${o.sector ? ' • ' + escapeHtml(o.sector) : ''}">${meta.icon}</span>` : '';
-        const up = (o.changePct || 0) >= 0;
-        return `<div class="emx-item" data-sym="${escapeHtml(o.symbol)}" data-name="${escapeHtml(o.name || '')}">` +
-          `<div class="sg-l"><b>${badge}${escapeHtml(o.symbol)}</b><span>${escapeHtml(o.name || '')}</span></div>` +
-          `<div class="emx-when">${whenTxt(o)}</div>` +
-          `<div class="sg-r"><div class="sg-price">${o.price != null ? fmtPrice(o.price, false) : '—'}</div>` +
-          `<div class="sg-chg ${up ? 'up' : 'down'}">${fmtPct(o.changePct)}</div></div>` +
-          `</div>`;
-      }).join('');
-  };
-  const buy = emxData.filter(o => o.dir === 'BUY');
-  const sell = emxData.filter(o => o.dir === 'SELL');
-  list.innerHTML =
-    grp('🟢 CROSS NAIK — EMA ' + emxCfg.fastB + ' ↑ ' + emxCfg.slowB, 'sg-buy', buy) +
-    grp('🔴 CROSS TURUN — EMA ' + emxCfg.fastS + ' ↓ ' + emxCfg.slowS, 'sg-sell', sell) +
-    '<div class="emx-note"><small>Waktu cross = tanggal penutupan bar harian (penutupan sesi bursa WIB). Bawaan app: BUY 3×7 ▲ · SELL 2×6 ▼. Klik saham untuk membuka chart.</small></div>';
-}
-wireEmaxBox();
 
 /* ---- GERAK PASAR (ala Google Finance: movers seluruh IDX) ---- */
 function renderMovers() {
@@ -1564,7 +1449,7 @@ function renderSignals() {
   }
 
   // Baris saham (dipakai mode grup maupun mode kelas risiko flat)
-  const rowHtml = (s, k, showLabel) => {
+  const rowHtml = (s, k) => {
     const idxCls = String(s.symbol).startsWith('^');
     const up = (s.changePct || 0) >= 0;
     const w = Math.round(((s.score + 1) / 2) * 100);
@@ -1572,39 +1457,24 @@ function renderSignals() {
     const rkBadge = rk
       ? `<span class="rk ${rk.cls}" title="${rk.icon} ${rk.label}${s.riskNote ? ' — ' + escapeHtml(s.riskNote) : ''}${s.sector ? ' • ' + escapeHtml(s.sector) : ''}">${rk.icon}</span>`
       : (idxCls ? '<span class="rk rk-idx" title="Indeks">📊</span>' : '');
-    const lbl = showLabel ? `<span class="lbl ${SIG_CLS[s.label] || 'neu'}">${s.label}</span>` : '';
     return `<div class="sg-row" data-sym="${escapeHtml(s.symbol)}" data-name="${escapeHtml(s.name || '')}">` +
       `<div class="sg-l"><b>${rkBadge}${escapeHtml(s.symbol)}${recentMark(s.symbol)}</b><span>${escapeHtml(s.name || '')}</span></div>` +
-      `<div class="sg-bar" title="Skor ${fmtNum(s.score, 2)} • Beli ${s.buys} / Jual ${s.sells} / Netral ${s.neutrals}${s.sector ? ' • ' + escapeHtml(s.sector) : ''}">${lbl}<i class="${SIG_CLS[k] || 'neu'}" style="width:${w}%"></i></div>` +
+      `<div class="sg-bar" title="Skor ${fmtNum(s.score, 2)} • Beli ${s.buys} / Jual ${s.sells} / Netral ${s.neutrals}${s.sector ? ' • ' + escapeHtml(s.sector) : ''}"><i class="${SIG_CLS[k] || 'neu'}" style="width:${w}%"></i></div>` +
       `<div class="sg-r"><div class="sg-price">${s.price != null ? fmtPrice(s.price, idxCls) : '—'}</div>` +
       `<div class="sg-chg ${up ? 'up' : 'down'}">${fmtPct(s.changePct)}</div></div>` +
       `</div>`;
   };
 
+  // Layout terkelompok: Strong Buy → Buy → Neutral → Sell → Strong Sell.
+  // Klik chip kelas (💎✅⚠️🔥) menyaring isi grup; klik chip sinyal mempersempit grupnya.
   let html = '';
-  if (riskFilter !== 'Semua') {
-    // MODE KELAS RISIKO: daftar flat semua saham di kelas itu — nama langsung terlihat
-    const meta = RK_META[riskFilter];
-    const flat = [...pool]
-      .map(s => Object.assign({}, s, { _a: Math.abs(s.score || 0) }))
-      .sort((a, b) => b._a - a._a);
-    const cap = 400;
-    html += `<div class="sg-head ${meta.cls}"><span class="dot"></span>${meta.icon} ${meta.label.toUpperCase()} <span class="n">${flat.length} saham</span></div>`;
-    if (!flat.length) {
-      html += '<div class="al-empty">Belum ada saham pada kelas ini (tunggu pemindaian selesai).</div>';
-    } else {
-      for (const s of flat.slice(0, cap)) html += rowHtml(s, s.label === 'Buy' || s.label === 'Strong Buy' ? 'Buy' : s.label === 'Neutral' ? 'Neutral' : 'Sell', true);
-      if (flat.length > cap) html += `<div class="al-empty">…dan ${fmtNum(flat.length - cap)} saham lainnya — persempit dengan chip sinyal di atas.</div>`;
-    }
-  } else {
-    const shown = sigFilter === 'Semua' ? SIG_ORDER : SIG_ORDER.filter(k => k === sigFilter);
-    for (const k of shown) {
-      const arr = groups[k];
-      if (!arr.length && sigFilter === 'Semua') continue;
-      html += `<div class="sg-head ${SIG_CLS[k]}"><span class="dot"></span>${k.toUpperCase()} <span class="n">${arr.length}</span></div>`;
-      if (!arr.length) { html += '<div class="al-empty">Tidak ada saham pada kategori ini.</div>'; continue; }
-      for (const s of arr) html += rowHtml(s, k, false);
-    }
+  const shownGroups = sigFilter === 'Semua' ? SIG_ORDER : SIG_ORDER.filter(k => k === sigFilter);
+  for (const k of shownGroups) {
+    const arr = groups[k];
+    if (!arr.length && sigFilter === 'Semua') continue; // grup kosong diloncati saat menampilkan semua
+    html += `<div class="sg-head ${SIG_CLS[k]}"><span class="dot"></span>${k.toUpperCase()} <span class="n">${arr.length}</span></div>`;
+    if (!arr.length) { html += '<div class="al-empty">Tidak ada saham pada kategori ini.</div>'; continue; }
+    for (const s of arr) html += rowHtml(s, k);
   }
   $('#sigList').innerHTML = html || '<div class="al-empty">Tidak ada data.</div>';
 }
