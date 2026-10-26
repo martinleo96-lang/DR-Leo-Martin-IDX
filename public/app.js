@@ -57,7 +57,7 @@ const state = {
   bars: [],
   meta: {},
   synthetic: false,
-  ind: { vol: true, ma: false, ema: false, emax: true, bb: false, vwap: false, ob: true, osc: 'none' },
+  ind: { ma: false, ema: false, emax: true, bb: false, vwap: false, ob: true, osc: 'none' },
 };
 let barsByTime = new Map();
 
@@ -84,7 +84,7 @@ const chart = LightweightCharts.createChart(chartEl, {
   handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true },
 });
 
-let mainSeries = null, volSeries = null, indSeries = [];
+let mainSeries = null, indSeries = [];
 
 function priceFmtFor(sym) {
   return sym.startsWith('^')
@@ -255,18 +255,6 @@ function buildMain() {
   }
 }
 
-function buildVolume() {
-  if (volSeries) { try { chart.removeSeries(volSeries); } catch (e) {} volSeries = null; }
-  if (!state.ind.vol) return;
-  if (!state.bars.some(b => b.volume != null && b.volume > 0)) return;
-  volSeries = chart.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
-  volSeries.setData(state.bars.filter(b => b.volume != null).map(b => ({
-    time: b.time, value: b.volume,
-    color: b.close >= b.open ? 'rgba(38,166,154,.55)' : 'rgba(239,83,80,.55)',
-  })));
-  try { chart.priceScale('vol').applyOptions({ visible: false }); } catch (e) {}
-}
-
 function buildIndicators() {
   for (const s of indSeries) { try { chart.removeSeries(s); } catch (e) {} }
   indSeries = [];
@@ -337,13 +325,8 @@ function buildIndicators() {
 
   try {
     chart.priceScale('right').applyOptions({
-      scaleMargins: { top: 0.06, bottom: hasOsc ? 0.44 : state.ind.vol ? 0.18 : 0.02 },
+      scaleMargins: { top: 0.06, bottom: hasOsc ? 0.44 : 0.02 },
     });
-    if (volSeries) {
-      chart.priceScale('vol').applyOptions({
-        scaleMargins: hasOsc ? { top: 0.6, bottom: 0.24 } : { top: 0.84, bottom: 0 },
-      });
-    }
     if (hasOsc) chart.priceScale('osc').applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
   } catch (e) {}
   renderEmaXMarkers(); // tanda ▲BUY / ▼SELL pada chart
@@ -588,8 +571,7 @@ async function loadChart(symbol, opts = {}) {
 
     const visRange = opts.silent ? safeVisibleRange() : null;
     buildMain();
-    buildVolume();
-    buildIndicators();
+      buildIndicators();
     if (!opts.silent) chart.timeScale().fitContent();
     else if (visRange) try { chart.timeScale().setVisibleRange(visRange); } catch (e) {}
 
@@ -871,7 +853,6 @@ $('#indMenuBtn').addEventListener('click', (e) => {
   $('#indMenu').classList.toggle('hidden');
 });
 $('#indMenu').addEventListener('change', () => {
-  state.ind.vol = document.querySelector('[data-ind="vol"]').checked;
   state.ind.ma = document.querySelector('[data-ind="ma"]').checked;
   state.ind.ema = document.querySelector('[data-ind="ema"]').checked;
   state.ind.emax = document.querySelector('[data-ind="emax"]').checked;
@@ -879,7 +860,6 @@ $('#indMenu').addEventListener('change', () => {
   state.ind.vwap = document.querySelector('[data-ind="vwap"]').checked;
   state.ind.ob = document.querySelector('[data-ind="ob"]').checked;
   state.ind.osc = document.querySelector('input[name="osc"]:checked').value;
-  buildVolume();
   buildIndicators();
   renderOrderBlocks();
   updateLegend();
