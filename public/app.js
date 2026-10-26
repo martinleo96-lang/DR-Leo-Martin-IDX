@@ -121,6 +121,12 @@ function parseChart(json) {
     const tb = typeof b.time === 'number' ? b.time : Date.parse(b.time + 'T00:00:00Z') / 1000;
     return ta - tb;
   });
+  // Pangkas sesi pasca-perdagangan Yahoo (15.06–16.15 WIB) —
+  // chart intraday IDX berakhir rapi di penutupan reguler 15.00
+  if (INTRADAY_TFS.includes(state.tf) && bars.length && typeof bars[0].time === 'number') {
+    bars = bars.filter(b => new Date(b.time * 1000).toISOString().slice(11, 16) <= '15:00');
+  }
+
   // 4H: resample dari bar 1H (Yahoo tidak menyediakan interval 4h)
   if (TFS[state.tf] && TFS[state.tf].resample4h && bars.length && typeof bars[0].time === 'number') {
     bars = resampleBars4h(bars);
