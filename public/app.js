@@ -41,13 +41,13 @@ const TFS = {
   '30M': { range: '1mo', interval: '30m' },
   '1H':  { range: '3mo', interval: '1h' },
   '4H':  { range: '1y',  interval: '1h', resample4h: true, label: '4h' }, // Yahoo tak punya 4h → resample dari 1h
-  '1D':  { range: '1d',  interval: '5m' },
+  '1D':  { range: '5y',  interval: '1d' },   // 1 candle = 1 hari bursa (semantik TradingView 'D')
   '5D':  { range: '5d',  interval: '15m' },
   'YTD': { range: 'ytd', interval: '1d' },
   '1Y':  { range: '1y',  interval: '1d' },
   '5Y':  { range: '5y',  interval: '1wk' },
 };
-const INTRADAY_TFS = ['5M', '30M', '1H', '4H', '1D', '5D']; // butuh prev-close dari meta
+const INTRADAY_TFS = ['5M', '30M', '1H', '4H', '5D']; // butuh prev-close dari meta
 
 const state = {
   symbol: 'BBCA',
@@ -619,7 +619,7 @@ function safeVisibleRange() {
 
 /* ============================================================
    EMA CROSS — 3/7 = BUY, 2/6 = SELL (tanda di chart)
-   Mengikuti timeframe chart yang dipilih (1D=5m … 5Y=1wk).
+   Mengikuti timeframe chart yang dipilih (5M…5D intraday; 1D/YTD/1Y harian; 5Y mingguan).
    ============================================================ */
 function barTimeVal(t) { return typeof t === 'number' ? t : Date.parse(t + 'T00:00:00Z') / 1000; }
 
