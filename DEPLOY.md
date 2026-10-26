@@ -6,6 +6,32 @@ Ada **dua versi server** dalam repo ini — keduanya menjalankan aplikasi yang s
 | --- | --- | --- |
 | `main.mjs` | **Deno Deploy** ⭐ | Gratis total, **tanpa kartu**, tanpa tidur, cron bawaan |
 | `server.js` | Node.js biasa (Render/VPS/lokal) | `node server.js`, Node ≥ 18, **zero-dependency** |
+| `cf/worker-bundle.js` | **Cloudflare Workers** 🛡️ | Cadangan: 1 file paste di dashboard, kuota reset **tiap hari** |
+
+---
+
+## 🛡️ Cara 3 — Cloudflare Workers (cadangan, TANPA kartu, reset kuota tiap hari)
+
+**Untuk apa?** Kalau Deno sedang suspend kuota bulanan, clone ini jadi hosting cadangan — kuota request-nya **reset tiap hari** (100rb/hari), jadi hampir tidak mungkin mati berhari-hari.
+
+Semua dari browser/HP (mode "Situs desktop" disarankan):
+
+1. Buka **`https://dash.cloudflare.com`** → **Sign up** (email + password, gratis, tanpa kartu) → verifikasi email.
+2. Menu **Compute (Workers)** → **Create** → pilih **Worker** → nama bebas (mis. `dr-leo-martin-idx`) → **Deploy** → Anda dapat URL `https://<nama>.<akun>.workers.dev`.
+3. Klik **Edit code** → **hapus semua contoh** → buka file mentah kode kami:
+   **`https://raw.githubusercontent.com/martinleo96-lang/DR-Leo-Martin-IDX/main/cf/worker-bundle.js`**
+   → select all → copy → **paste** menggantikan isinya → **Deploy**.
+4. **Settings → Bindings → + Add → KV Namespace** → **Create new KV namespace** (nama bebas) →
+   pada isian **Variable name** tulis persis: **`SNAP`** → **Save**.
+5. **Settings → Triggers → Cron Triggers → Add Cron Trigger** → tulis **`*/2 * * * *`** → **Add**.
+   (Maks 5 cron di free plan ✅ — kita pakai 1.)
+6. Buka URL workers.dev-nya → **Install aplikasi** seperti biasa.
+
+Catatan cadangan ini:
+- Pemindai berjalan per batch kecil tiap 2 menit (CPU free 10 ms/invokasi) → lapis likuid ±1 jam sekali,
+  seluruh 845 saham ±2–5 jam sekali. Lebih lambat dari Deno — wajar untuk cadangan.
+- Kunjungan Anda ikut menendang segar data ("lazy kick").
+- Kalau kuota 100rb/hari habis → error 1027 sampai tengah malam UTC (07.00 WIB), bukan mati sebulan.
 
 ---
 
