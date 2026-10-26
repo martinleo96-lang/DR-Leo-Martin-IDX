@@ -37,20 +37,22 @@ function escapeHtml(s) {
 
 /* ---------------- state ---------------- */
 const TFS = {
+  '5M':  { range: '5d',  interval: '5m' },
+  '30M': { range: '1mo', interval: '30m' },
+  '1H':  { range: '3mo', interval: '1h' },
+  '4H':  { range: '1y',  interval: '1h', resample4h: true, label: '4h' }, // Yahoo tak punya 4h → resample dari 1h
   '1D':  { range: '1d',  interval: '5m' },
   '5D':  { range: '5d',  interval: '15m' },
-  '1M':  { range: '1mo', interval: '30m' },
-  '3M':  { range: '3mo', interval: '1d' },
-  '6M':  { range: '6mo', interval: '1d' },
   'YTD': { range: 'ytd', interval: '1d' },
   '1Y':  { range: '1y',  interval: '1d' },
   '5Y':  { range: '5y',  interval: '1wk' },
 };
+const INTRADAY_TFS = ['5M', '30M', '1H', '4H', '1D', '5D']; // butuh prev-close dari meta
 
 const state = {
   symbol: 'BBCA',
   name: 'Bank Central Asia Tbk',
-  tf: '6M',
+  tf: '1Y',
   type: 'candles',
   bars: [],
   meta: {},
@@ -114,12 +116,42 @@ function parseChart(json) {
     const time = intraday ? ts[i] + gmt : new Date((ts[i] + gmt) * 1000).toISOString().slice(0, 10);
     map.set(String(time), { time, open: o, high: h, low: l, close: c, volume: v });
   }
-  const bars = [...map.values()].sort((a, b) => {
+  let bars = [...map.values()].sort((a, b) => {
     const ta = typeof a.time === 'number' ? a.time : Date.parse(a.time + 'T00:00:00Z') / 1000;
     const tb = typeof b.time === 'number' ? b.time : Date.parse(b.time + 'T00:00:00Z') / 1000;
     return ta - tb;
   });
+  // 4H: resample dari bar 1H (Yahoo tidak menyediakan interval 4h)
+  if (TFS[state.tf] && TFS[state.tf].resample4h && bars.length && typeof bars[0].time === 'number') {
+    bars = resampleBars4h(bars);
+  }
   return { bars, meta };
+}
+
+/* Gabungkan bar 1H menjadi candle 4H, anchor jam bursa 09.00 WIB.
+   time bar sudah bergeser ke WIB (gmt offset diterapkan saat parse). */
+function resampleBars4h(bars) {
+  const out = [];
+  let cur = null, curKey = null;
+  for (const b of bars) {
+    const d = new Date(b.time * 1000);
+    const ymd = d.toISOString().slice(0, 10);
+    let mins = (d.getUTCHours() - 9) * 60 + d.getUTCMinutes(); // menit sejak 09.00 WIB
+    if (mins < 0) mins += 1440;
+    const key = ymd + '|' + Math.floor(mins / 240); // bucket 4 jam
+    if (!cur || key !== curKey) {
+      if (cur) out.push(cur);
+      curKey = key;
+      cur = { time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume };
+    } else {
+      cur.high = Math.max(cur.high, b.high);
+      cur.low = Math.min(cur.low, b.low);
+      cur.close = b.close;
+      cur.volume = (cur.volume || 0) + (b.volume || 0);
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
 }
 
 /* ============================================================
@@ -367,7 +399,7 @@ function computeHeaderQuote() {
   const idx = isIndex();
   const price = meta.regularMarketPrice != null ? meta.regularMarketPrice : bars[bars.length - 1].close;
   let prev;
-  if (state.tf === '1D' || state.tf === '5D' || state.tf === '1M') {
+  if (INTRADAY_TFS.includes(state.tf)) {
     prev = meta.chartPreviousClose != null ? meta.chartPreviousClose
          : bars.length > 1 ? bars[bars.length - 2].close : price;
   } else {
@@ -418,7 +450,7 @@ function renderDetailsExtra() {
     : highs.length ? fmtPrice(Math.max(...highs), idx) : '—';
   $('#dWkL').textContent = meta.fiftyTwoWeekLow ? fmtPrice(meta.fiftyTwoWeekLow, idx)
     : lows.length ? fmtPrice(Math.min(...lows), idx) : '—';
-  $('#dInterval').textContent = `${state.tf} (${TFS[state.tf].interval})`;
+  $('#dInterval').textContent = `${state.tf} (${TFS[state.tf].label || TFS[state.tf].interval})`;
   $('#dBars').textContent = fmtNum(bars.length);
 }
 
@@ -1936,7 +1968,7 @@ let emaxFired = lsGet(EMAX_FIRED_KEY, {});
 function checkEmaXAlert() {
   if (!state.bars.length) return;
   const sym = state.symbol;
-  const tfI = TFS[state.tf].interval;
+  const tfI = TFS[state.tf].label || TFS[state.tf].interval; // 4H punya label sendiri
   const scope = sym + '|' + tfI;
   const lastBarT = barTimeVal(state.bars[state.bars.length - 1].time);
   const prevT = emaxSeen[scope];
