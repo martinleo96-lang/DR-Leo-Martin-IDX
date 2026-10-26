@@ -469,6 +469,54 @@ async function handleQuotes(u, res) {
 }
 
 /* ------------------------------------------------------------
+ * BARS_DB: bar harian hasil pindai (di memori) + /api/emax —
+ * alert EMA cross dengan periode yang BISA DIUBAH pengguna.
+ * ---------------------------------------------------------- */
+const BARS_DB = new Map(); // symbol -> [{time,open,high,low,close,volume}]
+
+function computeEmaxCustom(bars, fast, slow) {
+  if (!bars || bars.length < Math.max(slow + 3, fast * 2 + 1)) return null;
+  const c = bars.map(b => b.close);
+  const A = TALib.emaOn(c, fast), B = TALib.emaOn(c, slow);
+  let at = -1, dir = null;
+  for (let i = 1; i < c.length; i++) {
+    const fa = A[i], fb = B[i], pa = A[i - 1], pb = B[i - 1];
+    if (![fa, fb, pa, pb].every(Number.isFinite)) continue;
+    if (pa <= pb && fa > fb) { at = i; dir = 'BUY'; }
+    else if (pa >= pb && fa < fb) { at = i; dir = 'SELL'; }
+  }
+  if (at < 0) return null;
+  const age = bars.length - 1 - at;
+  if (age > 5) return null; // cross "segar" = ≤ 5 hari bursa terakhir
+  return { dir, age, t: bars[at].time || null };
+}
+
+async function handleEmax(u, res) {
+  const fast = Math.min(200, Math.max(2, parseInt(u.searchParams.get('fast'), 10) || 3));
+  const slow = Math.min(300, Math.max(3, parseInt(u.searchParams.get('slow'), 10) || 7));
+  if (fast >= slow) return sendJson(res, 400, { error: 'EMA cepat harus lebih kecil dari EMA lambat.' });
+  const out = [];
+  for (const [sym, bars] of BARS_DB) {
+    if (sym.startsWith('^')) continue;
+    const r = computeEmaxCustom(bars, fast, slow);
+    if (!r) continue;
+    const entry = UNI_MAP.get(sym);
+    const last = bars[bars.length - 1], prv = bars.length > 1 ? bars[bars.length - 2].close : last.close;
+    out.push({
+      symbol: sym,
+      name: entry ? entry.name : sym,
+      sector: entry && entry.sector ? entry.sector : null,
+      price: last.close,
+      changePct: prv ? ((last.close - prv) / prv) * 100 : 0,
+      dir: r.dir, age: r.age, t: r.t,
+    });
+  }
+  const rank = { BUY: 0, SELL: 1 };
+  out.sort((a, b) => rank[a.dir] - rank[b.dir] || a.age - b.age || (b.changePct - a.changePct));
+  sendJson(res, 200, { data: out, fast, slow, total: out.length, coverage: BARS_DB.size, ts: Date.now() });
+}
+
+/* ------------------------------------------------------------
  * Sinyal teknikal (Strong Buy … Strong Sell) untuk semua simbol
  * Rating dihitung dari data harian 1 tahun, cache 5 menit.
  * ---------------------------------------------------------- */
@@ -489,9 +537,10 @@ async function getSignal(entry) {
       const o = q.open && q.open[i], h = q.high && q.high[i],
             l = q.low && q.low[i], c = q.close && q.close[i];
       if (o == null || h == null || l == null || c == null) continue;
-      bars.push({ open: o, high: h, low: l, close: c, volume: (q.volume && q.volume[i]) || 0 });
+      bars.push({ time: ts[i], open: o, high: h, low: l, close: c, volume: (q.volume && q.volume[i]) || 0 });
     }
     if (bars.length < 60) throw new Error('bar kurang dari 60');
+    BARS_DB.set(entry.symbol, bars); // simpan bar harian utk kotak alert EMA cross kustom
     const rating = TALib.computeRatings(bars);
     if (!rating) throw new Error('rating kosong');
     const closes = bars.map(b => b.close);
@@ -695,6 +744,7 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/api/watchlist') return await handleWatchlist(u, res);
     if (u.pathname === '/api/quotes') return await handleQuotes(u, res);
     if (u.pathname === '/api/signals') return await handleSignals(u, res);
+    if (u.pathname === '/api/emax') return await handleEmax(u, res);
     if (u.pathname === '/api/orderblocks') return await handleOrderBlocks(u, res);
     if (u.pathname === '/api/health') return sendJson(res, 200, { ok: true, ts: Date.now() });
     if (u.pathname.startsWith('/api/')) return sendJson(res, 404, { error: 'Endpoint tidak ditemukan' });

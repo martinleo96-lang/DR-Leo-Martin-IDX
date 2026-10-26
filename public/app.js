@@ -1308,6 +1308,114 @@ $('#mvWrap').addEventListener('click', (e) => {
   if (it) onSelectSymbol(it.dataset.sym, it.dataset.name);
 });
 
+/* ---- KOTAK ALERT EMA CROSS (periode diubah-ubah, tersimpan) ---- */
+let emxCfg = { fast: 3, slow: 7 };   // default = pengaturan alert BUY/SELL bawaan app
+try {
+  const saved = JSON.parse(localStorage.getItem('idx-terminal-emaxcfg') || 'null');
+  if (saved && saved.fast >= 2 && saved.slow > saved.fast) emxCfg = saved;
+} catch (e) {}
+let emxData = null;
+
+function wireEmaxBox() {
+  const body = $('#emxBody');
+  if (!body) return;
+  const syncLabels = () => {
+    $('#emxFast').value = emxCfg.fast;
+    $('#emxSlow').value = emxCfg.slow;
+    $('#emxCfg').textContent = emxCfg.fast + '×' + emxCfg.slow;
+    $all('#emxPresets button').forEach(b =>
+      b.classList.toggle('on', b.dataset.p === emxCfg.fast + ',' + emxCfg.slow));
+  };
+  syncLabels();
+  emxApply._sync = syncLabels;
+
+  $('#emxToggle').addEventListener('click', () => {
+    body.classList.toggle('hidden');
+    $('#emxToggle').querySelector('.emx-car').textContent = body.classList.contains('hidden') ? '▾' : '▴';
+    if (!body.classList.contains('hidden') && emxData == null) loadEmaxCross();
+  });
+  $('#emxPresets').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-p]');
+    if (!b) return;
+    const [f, s] = b.dataset.p.split(',').map(Number);
+    $('#emxFast').value = f; $('#emxSlow').value = s;
+    emxApply();
+  });
+  $('#emxApply').addEventListener('click', () => emxApply());
+  $('#emxList').addEventListener('click', (e) => {
+    const it = e.target.closest('.emx-item');
+    if (it) onSelectSymbol(it.dataset.sym, it.dataset.name);
+  });
+}
+
+async function emxApply() {
+  const f = Math.max(2, parseInt($('#emxFast').value, 10) || 3);
+  const s = Math.max(3, parseInt($('#emxSlow').value, 10) || 7);
+  if (f >= s) { notify('EMA cepat harus < EMA lambat'); return; }
+  emxCfg = { fast: f, slow: s };
+  try { localStorage.setItem('idx-terminal-emaxcfg', JSON.stringify(emxCfg)); } catch (e) {}
+  if (emxApply._sync) emxApply._sync();
+  emxData = null;
+  await loadEmaxCross();
+}
+
+async function loadEmaxCross() {
+  const list = $('#emxList');
+  list.innerHTML = '<div class="wl-skel">Memindai EMA ' + emxCfg.fast + '×' + emxCfg.slow + ' di seluruh pasar…</div>';
+  try {
+    const r = await fetch(`/api/emax?fast=${emxCfg.fast}&slow=${emxCfg.slow}`);
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    emxData = j.data;
+    renderEmaxList(j.coverage);
+  } catch (e) {
+    list.innerHTML = '<div class="wl-error">Gagal memindai: ' + escapeHtml(String(e.message || e)) + '</div>';
+  }
+}
+
+function renderEmaxList(coverage) {
+  const list = $('#emxList');
+  if (!emxData || !emxData.length) {
+    list.innerHTML = '<div class="al-empty">Tidak ada cross ' + emxCfg.fast + '×' + emxCfg.slow +
+      ' dalam 5 hari bursa terakhir.' +
+      (coverage && coverage < 800 ? '<br/><small>Pemindai pasar masih berjalan (baru ' + coverage + ' saham terpindai) — coba Terapkan lagi sebentar.</small>' : '') +
+      '</div>';
+    return;
+  }
+  const riskOf = new Map(signals.map(s => [s.symbol, s.risk]));
+  const whenTxt = (o) => {
+    let tgl = '—';
+    if (o.t) {
+      const d = new Date(o.t * 1000);
+      tgl = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+    const ago = o.age === 0 ? '🔥 hari ini' : o.age === 1 ? 'kemarin' : o.age + ' hari lalu';
+    return tgl + ' · ' + ago;
+  };
+  const grp = (title, cls, arr) => {
+    if (!arr.length) return '';
+    return `<div class="sg-head ${cls}"><span class="dot"></span>${title} <span class="n">${arr.length}</span></div>` +
+      arr.map(o => {
+        const rk = riskOf.get(o.symbol); const meta = rk && RK_META[rk];
+        const badge = meta ? `<span class="rk ${meta.cls}" title="${meta.label}${o.sector ? ' • ' + escapeHtml(o.sector) : ''}">${meta.icon}</span>` : '';
+        const up = (o.changePct || 0) >= 0;
+        return `<div class="emx-item" data-sym="${escapeHtml(o.symbol)}" data-name="${escapeHtml(o.name || '')}">` +
+          `<div class="sg-l"><b>${badge}${escapeHtml(o.symbol)}</b><span>${escapeHtml(o.name || '')}</span></div>` +
+          `<div class="emx-when">${whenTxt(o)}</div>` +
+          `<div class="sg-r"><div class="sg-price">${o.price != null ? fmtPrice(o.price, false) : '—'}</div>` +
+          `<div class="sg-chg ${up ? 'up' : 'down'}">${fmtPct(o.changePct)}</div></div>` +
+          `</div>`;
+      }).join('');
+  };
+  const buy = emxData.filter(o => o.dir === 'BUY');
+  const sell = emxData.filter(o => o.dir === 'SELL');
+  list.innerHTML =
+    grp('🟢 CROSS NAIK (EMA ' + emxCfg.fast + ' ↑ ' + emxCfg.slow + ')', 'sg-buy', buy) +
+    grp('🔴 CROSS TURUN (EMA ' + emxCfg.fast + ' ↓ ' + emxCfg.slow + ')', 'sg-sell', sell) +
+    '<div class="emx-note"><small>Waktu cross = tanggal penutupan bar harian (penutupan sesi bursa WIB). Klik saham untuk membuka chart.</small></div>';
+}
+wireEmaxBox();
+
 /* ---- GERAK PASAR (ala Google Finance: movers seluruh IDX) ---- */
 function renderMovers() {
   const el = $('#mvWrap');

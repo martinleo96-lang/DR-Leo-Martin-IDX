@@ -528,6 +528,50 @@ button, input, select { font-family: inherit; }
 .sg-bar { display: flex; align-items: center; }
 .sg-bar i { flex-shrink: 0; }
 
+/* ===== Kotak Alert EMA Cross ===== */
+.emx { margin: 0 8px 8px; border: 1px solid #2a2e39; border-radius: 10px; overflow: hidden; background: #1e222d; }
+.emx-toggle {
+  width: 100%; display: flex; align-items: center; gap: 6px;
+  background: none; border: 0; color: #d1d4dc; padding: 9px 10px;
+  font-size: 12px; cursor: pointer; text-align: left;
+}
+.emx-toggle b { color: #f6a821; }
+.emx-cfg {
+  margin-left: auto; font-size: 11px; font-weight: 700; color: #0c0e15;
+  background: #f6a821; border-radius: 6px; padding: 1px 7px;
+}
+.emx-car { color: #787b86; }
+.emx-body { border-top: 1px solid #2a2e39; padding: 8px; }
+.emx-set { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.emx-set label { font-size: 10px; color: #787b86; display: flex; flex-direction: column; gap: 3px; }
+.emx-set input {
+  width: 74px; background: #131722; color: #d1d4dc; border: 1px solid #2a2e39;
+  border-radius: 6px; padding: 6px 8px; font-size: 13px; font-weight: 600; text-align: center;
+}
+#emxApply {
+  background: #2962ff; color: #fff; border: 0; border-radius: 6px;
+  padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.emx-presets { display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+.emx-presets button {
+  background: #131722; color: #787b86; border: 1px solid #2a2e39; border-radius: 20px;
+  padding: 4px 10px; font-size: 10px; font-weight: 600; cursor: pointer;
+}
+.emx-presets button.on { color: #f6a821; border-color: #f6a821; }
+.emx-hint { font-size: 10px; color: #787b86; margin: 6px 2px 4px; }
+.emx-list { max-height: 340px; overflow-y: auto; }
+.emx-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 8px;
+  border-top: 1px solid rgba(42, 46, 57, .5); cursor: pointer; font-size: 12px;
+}
+.emx-item:hover { background: #2a2e39; }
+.emx-item .sg-l { flex: 1.2; min-width: 0; }
+.emx-item .sg-l b { font-size: 12px; }
+.emx-item .sg-l span { display: block; font-size: 10px; color: #787b86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.emx-when { font-size: 10px; color: #b2b5be; flex: .9; text-align: center; white-space: nowrap; }
+.emx-item .sg-r { text-align: right; flex: .6; }
+.emx-note { padding: 6px 8px; color: #787b86; }
+
 /* ===== Gerak Pasar (market movers) ===== */
 .mv-wrap {
   display: grid;

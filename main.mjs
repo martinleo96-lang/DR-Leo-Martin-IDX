@@ -84,11 +84,55 @@ async function getDailyBars(symInput) {
   for (let i = 0; i < ts.length; i++) {
     const o = q.open && q.open[i], h = q.high && q.high[i], l = q.low && q.low[i], c = q.close && q.close[i];
     if (o == null || h == null || l == null || c == null) continue;
-    bars.push({ open: o, high: h, low: l, close: c, volume: (q.volume && q.volume[i]) || 0 });
+    bars.push({ time: ts[i], open: o, high: h, low: l, close: c, volume: (q.volume && q.volume[i]) || 0 });
     validTs.push(ts[i]);
   }
   const meta = r.meta || {};
+  if (bars.length >= 60) BARS_DB.set(sym, bars); // simpan utk kotak alert EMA cross kustom
   return { bars, validTs, meta };
+}
+
+/* BARS_DB: bar harian hasil pindai (memori) + /api/emax —
+   alert EMA cross dengan periode yang bisa diubah pengguna */
+const BARS_DB = new Map();
+function computeEmaxCustom(bars, fast, slow) {
+  if (!bars || bars.length < Math.max(slow + 3, fast * 2 + 1)) return null;
+  const c = bars.map(b => b.close);
+  const A = TALib.emaOn(c, fast), B = TALib.emaOn(c, slow);
+  let at = -1, dir = null;
+  for (let i = 1; i < c.length; i++) {
+    const fa = A[i], fb = B[i], pa = A[i - 1], pb = B[i - 1];
+    if (![fa, fb, pa, pb].every(Number.isFinite)) continue;
+    if (pa <= pb && fa > fb) { at = i; dir = 'BUY'; }
+    else if (pa >= pb && fa < fb) { at = i; dir = 'SELL'; }
+  }
+  if (at < 0) return null;
+  const age = bars.length - 1 - at;
+  if (age > 5) return null;
+  return { dir: dir, age: age, t: bars[at].time || null };
+}
+function apiEmax(u) {
+  const fast = Math.min(200, Math.max(2, parseInt(u.searchParams.get('fast'), 10) || 3));
+  const slow = Math.min(300, Math.max(3, parseInt(u.searchParams.get('slow'), 10) || 7));
+  if (fast >= slow) return sendJson({ error: 'EMA cepat harus lebih kecil dari EMA lambat.' }, 400);
+  const out = [];
+  for (const [sym, bars] of BARS_DB) {
+    if (sym.startsWith('^')) continue;
+    const r = computeEmaxCustom(bars, fast, slow);
+    if (!r) continue;
+    const entry = UNI_MAP.get(sym);
+    const last = bars[bars.length - 1], prv = bars.length > 1 ? bars[bars.length - 2].close : last.close;
+    out.push({
+      symbol: sym, name: entry ? entry.name : sym,
+      sector: entry && entry.sector ? entry.sector : null,
+      price: last.close,
+      changePct: prv ? ((last.close - prv) / prv) * 100 : 0,
+      dir: r.dir, age: r.age, t: r.t,
+    });
+  }
+  const rank = { BUY: 0, SELL: 1 };
+  out.sort((a, b) => rank[a.dir] - rank[b.dir] || a.age - b.age || (b.changePct - a.changePct));
+  return sendJson({ data: out, fast, slow, total: out.length, coverage: BARS_DB.size, ts: Date.now() });
 }
 
 /* ---------------- sinyal per simbol ---------------- */
@@ -381,6 +425,7 @@ Deno.serve(async (req) => {
       case '/api/watchlist': return await apiWatchlist();
       case '/api/quotes': return await apiQuotes(u);
       case '/api/signals': return await apiSignals(u, u.searchParams.get('force'));
+      case '/api/emax': return apiEmax(u);
       case '/api/orderblocks': return await apiOrderBlocks(u);
       case '/api/health': ensureScans(); return sendJson({ ok: true, ts: Date.now() });
       default:
