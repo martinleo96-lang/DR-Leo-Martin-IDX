@@ -333,6 +333,13 @@ function buildIndicators() {
 }
 
 /* ---------------- legend ---------------- */
+const BULAN_PDK = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+function fmtBarTime(t) {
+  // t = 'YYYY-MM-DD' (harian ke atas) atau unix detik yang SUDAH digeser ke WIB (intraday)
+  const iso = typeof t === 'number' ? new Date(t * 1000).toISOString() : t + 'T00:00:00.000Z';
+  const out = `${+iso.slice(8, 10)} ${BULAN_PDK[+iso.slice(5, 7) - 1]} ${iso.slice(0, 4)}`;
+  return typeof t === 'number' ? `${out} · ${iso.slice(11, 13)}.${iso.slice(14, 16)} WIB` : out;
+}
 function legendHtml(bar) {
   if (!bar) return '';
   const idx = isIndex();
@@ -351,6 +358,7 @@ function legendHtml(bar) {
   if (state.ind.osc === 'ATR') tags.push('ATR(14)');
   return (
     `<span class="lg-sym">${escapeHtml(state.symbol)} · ${state.tf}</span>` +
+    `<span class="lg-date">${fmtBarTime(bar.time)}</span>` +
     `<span class="lg-vals ${cls}">` +
     `<span>O <b>${fmtPrice(bar.open, idx)}</b></span>` +
     `<span>H <b>${fmtPrice(bar.high, idx)}</b></span>` +
@@ -370,7 +378,12 @@ function updateLegend(bar) {
 
 chart.subscribeCrosshairMove((param) => {
   if (!param || param.time == null || !state.bars.length) return;
-  const bar = barsByTime.get(String(param.time));
+  const t = param.time;
+  // lightweight-charts v4: tanggal string harian dikembalikan sebagai objek {year,month,day}
+  const key = (typeof t === 'object' && t.year != null)
+    ? `${t.year}-${String(t.month).padStart(2, '0')}-${String(t.day).padStart(2, '0')}`
+    : String(t);
+  const bar = barsByTime.get(key);
   if (bar) updateLegend(bar);
 });
 
