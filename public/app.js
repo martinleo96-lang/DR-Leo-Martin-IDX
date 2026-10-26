@@ -437,6 +437,106 @@ function renderHeaderQuote() {
   dc.className = 'dt-chg ' + (q.chg >= 0 ? 'up' : 'down');
 }
 
+/* ============================================================
+   🧠 ANALISIS OTOMATIS — ringkasan narasi per saham (tanpa LLM).
+   Murni aturan deterministik di atas mesin indikator yang sudah ada:
+   Kalman (tren), rating 25 indikator, EMA 3/7, kanal S&R Power,
+   Order Block, Williams Vix Fix, kelas risiko → bias + skenario.
+   ============================================================ */
+function renderAnalysis() {
+  const el = $('#dAnalisis');
+  if (!el) return;
+  const bars = state.bars, idx = isIndex();
+  const lines = [];
+  const add = (icon, txt, tone) => lines.push(`<div class="an-line an-${tone || 'mut'}">${icon} ${txt}</div>`);
+  const pct = (a, b) => b ? (((a - b) / b) * 100) : 0;
+  const fp = v => fmtPrice(v, idx);
+
+  if (!bars || bars.length < 60) { el.innerHTML = '<div class="an-line an-mut">Data belum cukup untuk analisis.</div>'; return; }
+  const last = bars[bars.length - 1];
+  const harga = last.close;
+
+  // 1) Tren Kalman
+  const kal = TALib.kalmanTrend(bars);
+  if (kal) {
+    const ikon = kal.dir > 0 ? '🟩' : '🟥';
+    add(ikon, `Tren dominan (Kalman): <b>${kal.dir > 0 ? 'NAIK' : 'TURUN'}</b>, kekuatan <b>${Math.abs(kal.strength).toFixed(0)}%</b>` +
+      (kal.flip ? ' <b>— baru saja BERBALIK arah 🌀</b>' : ''), kal.dir > 0 ? 'up' : 'down');
+  }
+
+  // 2) Rating 25 indikator
+  const rating = TALib.computeRatings(bars);
+  if (rating) {
+    const lbl = TALib.labelOf(rating.score);
+    add('🎛️', `25 indikator teknikal: <b>${rating.b}</b> beli · ${rating.n} netral · <b>${rating.s}</b> jual → <b>${lbl}</b>`,
+      rating.score > 0.2 ? 'up' : rating.score < -0.2 ? 'down' : 'mut');
+  }
+
+  // 3) Momentum EMA pendek
+  const closes = bars.map(b => b.close);
+  const e3 = TALib.emaOn(closes, 3), e7 = TALib.emaOn(closes, 7);
+  const i = closes.length - 1;
+  if (e3[i] != null && e7[i] != null) {
+    add(e3[i] > e7[i] ? '⚡' : '🪫', `Momentum pendek (EMA3 vs EMA7): <b>${e3[i] > e7[i] ? 'positif' : 'negatif'}</b>`, e3[i] > e7[i] ? 'up' : 'down');
+  }
+
+  // 4) Posisi harga vs kanal S&R Power (untuk skenario & jarak level)
+  const ch = TALib.srPowerChannel(bars);
+  let jarakSup = null, jarakRes = null;
+  if (ch) {
+    jarakSup = ch.supLine; jarakRes = ch.resLine;
+    if (harga <= ch.supTop && harga >= ch.supLine)
+      add('🛡️', `Harga <b>berada DI ZONA BUY</b> (${fp(ch.supLine)}–${fp(ch.supTop)}) — area pantulan secara historis`, 'up');
+    else if (harga >= ch.resBot && harga <= ch.resLine)
+      add('🛡️', `Harga <b>berada DI ZONA SELL</b> (${fp(ch.resBot)}–${fp(ch.resLine)}) — area rejection secara historis`, 'down');
+    else
+      add('📏', `Level kunci: support <b>${fp(ch.supLine)}</b> (${fmtPct(pct(ch.supLine, harga))}) · resistance <b>${fp(ch.resLine)}</b> (+${fmtPct(pct(ch.resLine, harga))})`, 'mut');
+  }
+
+  // 5) Order Block segar terdekat
+  const det = TALib.detectOrderBlocks(bars);
+  const obBull = det.bullish.find(o => !o.breaker), obBear = det.bearish.find(o => !o.breaker);
+  if (obBull) add('🧱', `OB bullish aktif <b>${fp(obBull.bottom)}–${fp(obBull.top)}</b> (${fmtPct(pct(obBull.bottom, harga))} dari harga)`, 'mut');
+  if (obBear) add('🧱', `OB bearish mengintai <b>${fp(obBear.bottom)}–${fp(obBear.top)}</b> (+${fmtPct(pct(obBear.top, harga))})`, 'mut');
+
+  // 6) Williams Vix Fix ekstrem
+  const vfx = TALib.vixFix(bars);
+  if (vfx && vfx.bottom) add('🟩', `Williams Vix Fix: harga menyentuh <b>titik terendah ekstrem</b> — kandidat pantul`, 'up');
+  else if (vfx && vfx.top) add('🟥', `Williams Vix Fix: harga di <b>titik tertinggi ekstrem</b> — waspada puncak`, 'down');
+
+  // 7) Kelas risiko
+  const risk = TALib.classifyRisk(bars, { liquid: true });
+  const srow = signals.find(x => String(x.symbol) === String(state.symbol));
+  const rcode = srow && srow.risk ? srow.risk : (risk ? risk.code : null);
+  if (rcode && RK_META[rcode]) add(RK_META[rcode].icon, `Kelas risiko: <b>${RK_META[rcode].label}</b>${risk && risk.note ? ' — ' + risk.note.split(';')[0] : ''}`,
+    rcode === 'gorengan' ? 'down' : rcode === 'highrisk' ? 'warn' : 'mut');
+
+  // 8) BIAS akhir (skor aturan) + skenario level nyata
+  let sc = 0;
+  if (kal) sc += kal.dir;
+  if (rating) sc += rating.score > 0.5 ? 2 : rating.score > 0.2 ? 1 : rating.score < -0.5 ? -2 : rating.score < -0.2 ? -1 : 0;
+  if (e3[i] != null && e7[i] != null) sc += e3[i] > e7[i] ? 1 : -1;
+  if (ch) { if (harga <= ch.supTop && harga >= ch.supLine) sc += 1; else if (harga >= ch.resBot && harga <= ch.resLine) sc -= 1; }
+  if (vfx && vfx.bottom) sc += 1; else if (vfx && vfx.top) sc -= 1;
+  const verdict =
+    sc >= 3  ? ['🚀', 'Bias: <b>AKUMULASI KUAT</b>', 'up'] :
+    sc >= 1  ? ['✅', 'Bias: <b>akumulasi hati-hati</b>', 'up'] :
+    sc <= -3 ? ['🔻', 'Bias: <b>DISTRIBUSI KUAT</b>', 'down'] :
+    sc <= -1 ? ['⚠️', 'Bias: <b>distribusi / waspada</b>', 'warn'] :
+               ['⏸️', 'Bias: <b>NETRAL — wait &amp; see</b>', 'mut'];
+  let skenario = '';
+  if (ch) {
+    skenario = sc > 0
+      ? ` Skenario: sehat selama bertahan di atas support <b>${fp(jarakSup)}</b>; target terdekat <b>${fp(jarakRes)}</b>.`
+      : sc < 0
+        ? ` Skenario: tekanan mereda bila merebut kembali <b>${fp(jarakRes)}</b>; waspada tembus <b>${fp(jarakSup)}</b>.`
+        : ` Skenario: konfirmasi arah menunggu break <b>${fp(jarakRes)}</b> atau breakdown <b>${fp(jarakSup)}</b>.`;
+  }
+  add(verdict[0], `<span class="an-verdict">${verdict[1]}</span>${skenario}`, verdict[2]);
+
+  el.innerHTML = lines.join('');
+}
+
 function renderDetailsExtra() {
   const meta = state.meta || {};
   const bars = state.bars;
@@ -605,6 +705,7 @@ async function loadChart(symbol, opts = {}) {
     updateLegend();
     renderHeaderQuote();
     renderDetailsExtra();
+    renderAnalysis();
     loadQuoteExtra();
     renderTA();
     setActiveRow();

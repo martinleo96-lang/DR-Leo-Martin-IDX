@@ -692,3 +692,13 @@ button, input, select { font-family: inherit; }
 .sr-zone.sr-sell { background: rgba(240, 64, 251, 0.09); border-top: 1.5px solid rgba(240, 64, 251, .95); border-bottom: 1px dashed rgba(240, 64, 251, .35); }
 .sr-zone .sr-tag { position: absolute; right: 4px; bottom: 1px; font-size: 9px; color: var(--muted); background: rgba(19, 23, 34, .75); padding: 0 4px; border-radius: 3px; white-space: nowrap; }
 .sr-mid { position: absolute; border-top: 1px dotted rgba(140, 148, 166, .8); pointer-events: none; }
+
+/* ---------- Analisis Otomatis ---------- */
+.an-card { display: flex; flex-direction: column; gap: 7px; padding: 4px 2px 8px; }
+.an-line { font-size: 12px; line-height: 1.45; color: var(--text); padding-left: 10px; border-left: 3px solid var(--border); }
+.an-line.an-up   { border-left-color: var(--up); }
+.an-line.an-down { border-left-color: var(--down); }
+.an-line.an-warn { border-left-color: #ff9800; }
+.an-line.an-mut  { color: var(--muted); }
+.an-line b { font-variant-numeric: tabular-nums; }
+.an-verdict { font-weight: 700; }
