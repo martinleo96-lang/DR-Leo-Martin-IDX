@@ -9,6 +9,7 @@
 const FILES = /*__FILES__*/;          // UI statis (teks/base64 + mime)
 const UNI = /*__UNI__*/;              // [ [simbol, nama, sektor], ... ] — 845 saham
 const LIQ = new Set(/*__LIQ__*/);     // daftar 174 saham likuid
+const LIQ_LIST = [...LIQ];                        // urut untuk subset default OB
 const INDICES = [
   ['^JKSE', 'IDX Composite (IHSG)'], ['^JKLQ45', 'IDX LQ45'],
 ];
@@ -56,9 +57,9 @@ async function yahooJson(pathname, ttlSec = 0) {
 }
 
 /* ---------- bar harian 1 tahun ---------- */
-async function getDailyBars(symInput) {
+async function getDailyBars(symInput, range = '1y') {
   const sym = normSymbol(symInput);
-  const data = await yahooJson(`/v8/finance/chart/${encodeURIComponent(sym)}?range=1y&interval=1d&includePrePost=false`, 60);
+  const data = await yahooJson(`/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=1d&includePrePost=false`, 60);
   const r = data.chart && data.chart.result && data.chart.result[0];
   if (!r) throw new Error('data kosong');
   const meta = r.meta || {};
@@ -294,15 +295,28 @@ export default {
         });
       }
       if (p === '/api/orderblocks') {
-        const sym = u.searchParams.get('symbol') || '';
-        if (!sym) return jres({ error: 'Parameter symbol wajib diisi' }, 400);
-        try {
-          const { bars } = await getDailyBars(sym);
-          const obs = TALib.detectOrderBlocks(bars);
-          const isIdx = sym.startsWith('^');
-          const risk = isIdx ? null : TALib.classifyRisk(bars, { liquid: LIQ.has(sym.replace('.JK', '')) });
-          return jres({ data: [{ symbol: sym.replace('.JK', ''), obs, risk: risk ? risk.code : null, riskNote: risk ? risk.note : null, bars: bars.length }], ts: Date.now() });
-        } catch (e) { return jres({ data: [], error: String(e.message || e) }, 200); }
+        const many = String(u.searchParams.get('symbols') || '')
+          .split(',').map(x => x.trim().toUpperCase()).filter(Boolean).slice(0, 12);
+        const one = String(u.searchParams.get('symbol') || '').trim().toUpperCase();
+        // Tanpa param → 12 saham likuid teratas (dipakai PWA background sync;
+        // dibatasi agar muat di CPU 10ms & 50 subrequest kuota gratis)
+        const syms = many.length ? many : (one ? [one] : LIQ_LIST.slice(0, 12));
+        if (!syms.length) return jres({ error: 'Parameter symbol wajib diisi' }, 400);
+        const range = syms.length > 1 ? '6mo' : '1y'; // batch: 6 bulan cukup untuk OB & jauh lebih ringan
+        const rows = [];
+        for (let i = 0; i < syms.length; i += CONCUR) {
+          const part = await Promise.all(syms.slice(i, i + CONCUR).map(async (sym) => {
+            try {
+              const { bars } = await getDailyBars(sym, range);
+              const obs = TALib.detectOrderBlocks(bars);
+              const isIdx = sym.startsWith('^');
+              const risk = isIdx ? null : TALib.classifyRisk(bars, { liquid: LIQ.has(sym.replace('.JK', '')) });
+              return { symbol: sym.replace('.JK', ''), obs, risk: risk ? risk.code : null, riskNote: risk ? risk.note : null, bars: bars.length };
+            } catch (e) { return { symbol: sym.replace('.JK', ''), obs: [], error: String(e.message || e) }; }
+          }));
+          rows.push(...part);
+        }
+        return jres({ data: rows, ts: Date.now() });
       }
 
       /* ---- file statis / SPA ---- */
