@@ -7,7 +7,7 @@ dengan tampilan dan fitur mirip TradingView.
 
 - **Chart interaktif** (Lightweight Charts™ dari TradingView): geser, zoom, crosshair
 - **Jenis chart**: Lilin (Candlestick), Batang (OHLC), Garis, Area
-- **Rentang waktu**: 1D (5 mnt), 5D (15 mnt), 1M (30 mnt), 3M–1Y (harian), 5Y (mingguan)
+- **Rentang waktu**: intraday **5M · 30M · 1H · 4H** (candle 4H dirangkai dari bar 1 jam) · 1D · 5D · YTD · 1Y (harian) · 5Y (mingguan)
 - **Indikator teknikal** (menu ƒx Indikator): Volume, MA 20/50, EMA 20, Bollinger Bands (20,2),
   **VWAP**, RSI (14), MACD (12,26,9), **Stochastic (14,3,3)**, **ATR (14)**
 - **EMA Cross marker** (menu ƒx Indikator, aktif bawaan): tanda **▲ BUY** di bawah lilin saat
@@ -23,7 +23,7 @@ dengan tampilan dan fitur mirip TradingView.
   Buy / Neutral / Sell / Strong Sell** — lengkap dengan skor, bar kekuatan sinyal, harga &
   perubahan, chip filter, dan badge SB/B/N/S/SS di watchlist
   (dihitung server via `GET /api/signals`; pemindaian dua lapis di latar belakang —
-  176 simbol likuid tiap 10 menit, 671 sisanya tiap 60 menit)
+  176 simbol likuid tiap 30 menit, 671 sisanya tiap 6 jam (hemat kuota CPU hosting gratis)
 - **Klasifikasi risiko tiap saham**: 💎 **Unggulan** (likuid & mapan), ✅ **Reguler**,
   ⚠️ **High Risk** (ATR ≥ 6% / sering ARA-ARB), 🔥 **Gorengan** (harga rendah, likuiditas
   tipis, atau lonjakan volume tak wajar) — dihitung dari data harian 1 tahun

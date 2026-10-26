@@ -215,7 +215,8 @@ async function saveSnap(snap) {
 
 /* ---------------- pemindai 2 lapis ---------------- */
 const SCAN = { runningA: false, runningB: false };
-const TTL_A = 10 * 60000, TTL_B = 60 * 60000;
+// TTL snapshot — hemat kuota CPU gratis Deno: lapis likuid 30 mnt, seluruh pasar 6 jam
+const TTL_A = 30 * 60000, TTL_B = 6 * 60 * 60000;
 
 async function scanTier(tier) {
   const isA = tier === 'A';
@@ -250,10 +251,10 @@ async function ensureScans() {
   if (now - (snap.B.ts || 0) > TTL_B && !SCAN.runningB) scanTier('B');
   return snap;
 }
-// Jadwal latar belakang — jalan terus walau tak ada pengunjung
+// Jadwal latar belakang — hemat CPU free tier (riwayat: */10+hourly menghabiskan kuota bulanan)
 try {
-  Deno.cron('scan-tier-a', '*/10 * * * *', () => scanTier('A'));
-  Deno.cron('scan-tier-b', '23 * * * *', () => scanTier('B'));
+  Deno.cron('scan-tier-a', '*/30 * * * *', () => scanTier('A'));   // 174 likuid tiap 30 menit
+  Deno.cron('scan-tier-b', '7 */6 * * *', () => scanTier('B'));    // seluruh pasar tiap 6 jam (±02,08,14,20 WIB)
 } catch (e) { console.log('cron tidak tersedia di lingkungan ini:', e.message); }
 
 // Kick pemindaian segera saat isolate menyala (tidak menunggu request pertama)

@@ -20,7 +20,9 @@ Ada **dua versi server** dalam repo ini — keduanya menjalankan aplikasi yang s
    *(nama project bisa diganti di Settings agar URL lebih cantik)*
 
 Yang langsung jalan otomatis di sana:
-- Pemindai **2 lapis via cron** (tier likuid tiap 10 menit, seluruh 845 saham tiap jam) — **jalan terus tanpa perlu pengunjung**, tanpa pinger.
+- Pemindai **2 lapis via cron** (tier likuid tiap 30 menit, seluruh 845 saham tiap 6 jam) — **jalan terus tanpa pengunjung**, tanpa pinger.
+  Jadwal ini sengaja dikendurkan agar **kuota CPU gratis (±10 jam/bulan) tahan sebulan**.
+  Kalau melebihi kuota → app mati sampai **bulan berganti (reset tiap tanggal 1)**.
 - Hasil scan disimpan di **Deno KV** (bawaan, tanpa setup).
 - Semua API + PWA + notifikasi identik dengan versi Node.
 
