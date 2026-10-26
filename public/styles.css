@@ -685,3 +685,10 @@ button, input, select { font-family: inherit; }
   /* Chips sinyal & kelas risiko tetap bisa digeser */
   #sigSummary, #sigRisk { overflow-x: auto; }
 }
+
+/* ---------- S&R Power Channel overlay ---------- */
+.sr-zone { position: absolute; pointer-events: auto; display: block; }
+.sr-zone.sr-buy  { background: rgba(105, 240, 174, 0.10); border-top: 1.5px solid rgba(105, 240, 174, .95); border-bottom: 1px dashed rgba(105, 240, 174, .35); }
+.sr-zone.sr-sell { background: rgba(240, 64, 251, 0.09); border-top: 1.5px solid rgba(240, 64, 251, .95); border-bottom: 1px dashed rgba(240, 64, 251, .35); }
+.sr-zone .sr-tag { position: absolute; right: 4px; bottom: 1px; font-size: 9px; color: var(--muted); background: rgba(19, 23, 34, .75); padding: 0 4px; border-radius: 3px; white-space: nowrap; }
+.sr-mid { position: absolute; border-top: 1px dotted rgba(140, 148, 166, .8); pointer-events: none; }

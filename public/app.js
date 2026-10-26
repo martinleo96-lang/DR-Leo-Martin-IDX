@@ -57,7 +57,7 @@ const state = {
   bars: [],
   meta: {},
   synthetic: false,
-  ind: { ma: false, ema: false, emax: true, bb: false, vwap: false, ob: true, osc: 'none' },
+  ind: { ma: false, ema: false, emax: true, bb: false, vwap: false, ob: true, srp: true, osc: 'none' },
 };
 let barsByTime = new Map();
 
@@ -259,6 +259,9 @@ function buildMain() {
     mainSeries = chart.addLineSeries({ color: '#2962ff', lineWidth: 2, ...common });
     mainSeries.setData(lineData);
   }
+  // seri baru → tanda & lapisan ikut dipasang ulang (marker menempel ke mainSeries)
+  renderEmaXMarkers();
+  renderSrChannel();
 }
 
 function buildIndicators() {
@@ -595,6 +598,8 @@ async function loadChart(symbol, opts = {}) {
     else if (visRange) try { chart.timeScale().setVisibleRange(visRange); } catch (e) {}
 
     const __obList = renderOrderBlocks();
+    renderSrChannel();
+    checkSrPowerAlert();
     obAlertFromChart(__obList);
     checkEmaXAlert();
     updateLegend();
@@ -655,16 +660,28 @@ function emaCrossSignals(bars) {
 }
 
 /* Gambar tanda ▲BUY (bawah lilin) / ▼SELL (atas lilin) */
+function srPowerMarkers() {
+  const ch = srChannelNow();
+  if (!ch) return [];
+  return ch.signals.slice(-14).map(sg => ({
+    time: sg.time,
+    position: sg.dir === 'buy' ? 'belowBar' : 'aboveBar',
+    color: sg.dir === 'buy' ? SR_COL_BUY : SR_COL_SELL,
+    shape: 'circle', text: '◈',
+  }));
+}
+
 function renderEmaXMarkers() {
   if (!mainSeries) return;
-  if (!state.ind.emax || state.type === 'area' || state.type === 'line' || state.bars.length < 8) {
+  if ((!state.ind.emax && !state.ind.srp) || state.type === 'area' || state.type === 'line' || state.bars.length < 8) {
     try { mainSeries.setMarkers([]); } catch (e) {}
     return;
   }
-  const { buys, sells } = emaCrossSignals(state.bars);
+  const { buys, sells } = state.ind.emax ? emaCrossSignals(state.bars) : { buys: [], sells: [] };
   const ms = [
     ...buys.map(x => ({ time: x.time, position: 'belowBar', color: UP, shape: 'arrowUp', text: 'BUY' })),
     ...sells.map(x => ({ time: x.time, position: 'aboveBar', color: DOWN, shape: 'arrowDown', text: 'SELL' })),
+    ...srPowerMarkers(),
   ].sort((a, b) => barTimeVal(a.time) - barTimeVal(b.time));
   try { mainSeries.setMarkers(ms); } catch (e) {}
 }
@@ -878,9 +895,11 @@ $('#indMenu').addEventListener('change', () => {
   state.ind.bb = document.querySelector('[data-ind="bb"]').checked;
   state.ind.vwap = document.querySelector('[data-ind="vwap"]').checked;
   state.ind.ob = document.querySelector('[data-ind="ob"]').checked;
+  state.ind.srp = document.querySelector('[data-ind="srp"]').checked;
   state.ind.osc = document.querySelector('input[name="osc"]:checked').value;
   buildIndicators();
   renderOrderBlocks();
+  renderSrChannel();
   updateLegend();
   updateIndCount();
 });
@@ -1129,6 +1148,73 @@ function obTimeStr(t) {
   return String(t);
 }
 
+/* ---------- S&R Power Channel (port ChartPrime) ----------
+   Zona BUY (lime) & SELL (fuchsia) digambar sebagai layer DOM
+   di atas kanvas — sama seperti Order Block. */
+let srEls = [];
+const SR_COL_BUY = '#69f0ae', SR_COL_SELL = '#f040fb';
+function srChannelNow() {
+  if (!state.ind.srp || !state.bars.length) return null;
+  return TALib.srPowerChannel(state.bars);
+}
+function renderSrChannel() {
+  const layer = $('#obLayer');
+  for (const el of srEls) el.remove();
+  srEls = [];
+  const ch = srChannelNow();
+  if (!ch || !mainSeries || state.type === 'area' || state.type === 'line') return;
+  const idxCls = isIndex();
+
+  const mkDiv = (cls) => {
+    const d = document.createElement('div');
+    d.className = cls;
+    layer.appendChild(d); srEls.push(d);
+    return d;
+  };
+  const resZ = mkDiv('sr-zone sr-sell');
+  resZ.title = `ZONA SELL (resistance ± 0.5·ATR)\n${fmtPrice(ch.resBot, idxCls)} – ${fmtPrice(ch.resLine, idxCls)}\nSell Power: ${ch.sellPower}/${ch.length} candle turun`;
+  resZ.innerHTML = `<span class="sr-tag">Sell Power: ${ch.sellPower}</span>`;
+  const supZ = mkDiv('sr-zone sr-buy');
+  supZ.title = `ZONA BUY (support ± 0.5·ATR)\n${fmtPrice(ch.supLine, idxCls)} – ${fmtPrice(ch.supTop, idxCls)}\nBuy Power: ${ch.buyPower}/${ch.length} candle naik`;
+  supZ.innerHTML = `<span class="sr-tag">Buy Power: ${ch.buyPower}</span>`;
+  const midL = mkDiv('sr-mid');
+  midL.title = `Mid ${fmtPrice(ch.mid, idxCls)}`;
+
+  srEls.chObj = ch;
+  positionSrChannel();
+}
+function positionSrChannel() {
+  const ch = srEls.chObj;
+  if (!ch || !srEls.length || !mainSeries) return;
+  const tsc = chart.timeScale();
+  const layer = $('#obLayer');
+  const layerW = layer.clientWidth || 1;
+  const startBar = state.bars[Math.max(0, state.bars.length - ch.length)];
+  let x1 = tsc.timeToCoordinate(startBar.time);
+  if (x1 == null || x1 < 0) x1 = 0;
+  const x2 = layerW; // diperpanjang ke tepi kanan (Pine: +extend)
+  const [resZ, supZ, midL] = srEls;
+  const put = (div, yA, yB) => {
+    if (yA == null || yB == null) { div.style.display = 'none'; return; }
+    div.style.display = '';
+    div.style.left = x1 + 'px';
+    div.style.width = Math.max(10, x2 - x1) + 'px';
+    div.style.top = Math.min(yA, yB) + 'px';
+    div.style.height = Math.abs(yB - yA) + 'px';
+  };
+  const lc = mainSeries.priceToCoordinate.bind(mainSeries);
+  put(resZ, lc(ch.resLine), lc(ch.resBot));
+  put(supZ, lc(ch.supTop),  lc(ch.supLine));
+  // garis mid putus-putus
+  const ym = lc(ch.mid);
+  if (ym == null) midL.style.display = 'none';
+  else {
+    midL.style.display = '';
+    midL.style.left = x1 + 'px'; midL.style.width = Math.max(10, x2 - x1) + 'px';
+    midL.style.top = ym + 'px'; midL.style.height = '0';
+  }
+}
+
 function renderOrderBlocks() {
   const layer = $('#obLayer');
   layer.innerHTML = '';
@@ -1191,6 +1277,7 @@ function positionOBZones() {
 }
 chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
   if (obZones.length) requestAnimationFrame(positionOBZones);
+  if (srEls.length) requestAnimationFrame(positionSrChannel);
 });
 
 /* ---- alert Order Block ---- */
@@ -1422,6 +1509,7 @@ async function loadSignals(force) {
     checkSignalChanges(signals);
     checkMarketEmaX(signals);
     checkMarketKalman(signals);
+    checkMarketSr(signals);
     checkMarketVfx(signals);
     if (wlSort !== 'bawaan') loadWatchlist(false); // susun ulang daftar pantau sesuai mode urutan
     autoObScan();
@@ -1561,6 +1649,7 @@ function histIcon(h) {
   if (h.kind === 'konflu') return '💎';
   if (h.kind === 'emax') return '⚡';
   if (h.kind === 'kalman') return '🌀';
+  if (h.kind === 'sr') return '🛡️';
   if (h.kind === 'rekap') return '📋';
   if (h.kind === 'sinyal') {
     if (h.toLabel === 'Strong Buy') return '🚀';
@@ -1669,6 +1758,9 @@ function initSignalAlertPref() {
   wirePrefChk('#kalAlertChk', () => kalAlertOn, v => { kalAlertOn = v; prefSet(PREF_KALALERT, v); },
     '🌀 Alert perubahan tren Kalman AKTIF — setiap tren harian berbalik di 845 saham + indeks',
     '🔕 Alert perubahan tren Kalman dinonaktifkan', () => checkMarketKalman(signals));
+  wirePrefChk('#srpAlertChk', () => srpAlertOn, v => { srpAlertOn = v; prefSet(PREF_SRPALERT, v); },
+    '🛡️ Alert S&R Power AKTIF — tanda ◈ BELI/JUAL di timeframe chart + harian seluruh pasar',
+    '🔕 Alert S&R Power dinonaktifkan', () => { checkMarketSr(signals); checkSrPowerAlert(); });
   wirePrefChk('#vfxAlertChk', () => vfxAlertOn, v => { vfxAlertOn = v; prefSet(PREF_VFXALERT, v); },
     '🟩 Alert Vix Fix AKTIF — harga sentuh titik terendah/tertinggi ekstrem',
     '🔕 Alert Vix Fix dinonaktifkan', () => checkMarketVfx(signals));
@@ -1969,6 +2061,61 @@ function checkMarketEmaX(rows) {
   hits.slice(0, 5).forEach((h, i) => fireMx(h, i));
   if (hits.length > 5) toast(`⚡ +${hits.length - 5} EMA cross lain — lihat Riwayat Notifikasi.`, 'ok');
 }
+/* 🛡️ S&R Power — ◈ BELI (pantul zona buy) / ◈ JUAL (ditolak zona sell) */
+const PREF_SRPALERT = 'idx-terminal-pref-srpalert';
+const SRP_FIRED_KEY = 'idx-terminal-srpfired-v1';
+const SRP_INIT_KEY = 'idx-terminal-srpinit-v1';
+let srpAlertOn = prefGet(PREF_SRPALERT, true);
+let srpFired = lsGet(SRP_FIRED_KEY, {});
+const srChartSeen = {}; // chart TF: scope sym|tf → waktu bar tanda terakhir
+
+function fireSr(h, i) {
+  const buy = h.dir === 'BELI';
+  const rk = h.risk && RK_META[h.risk] ? ' • ' + RK_META[h.risk].icon : '';
+  const idxCls = String(h.sym).startsWith('^');
+  const aksi = buy ? '◈ MEMANTUL dari ZONA BUY 🟩' : '◈ DITOLAK ZONA SELL 🟥';
+  const msg = `🛡️ ${h.sym}${rk} — ${aksi} (S&R Power 130 bar${h.tfTxt || ''}) @ ${fmtPrice(h.price, idxCls)}`;
+  pushHistory('sr', msg, h.sym, h.dir);
+  if (i < 5) setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser(`DR Leo Martin IDX — S&R ${h.dir} ${h.sym}`, msg); }, i * 600);
+}
+
+/* Versi chart: tanda ◈ pada bar terakhir timeframe yang sedang dibuka */
+function checkSrPowerAlert() {
+  if (!srpAlertOn) return;
+  const ch = srChannelNow();
+  if (!ch || !ch.lastSignal) return;
+  const scope = state.symbol + '|' + state.tf;
+  const t = String(ch.lastSignal.time);
+  if (srChartSeen[scope] === t) return;
+  if (srChartSeen[scope] !== undefined) {
+    fireSr({ sym: state.symbol, dir: ch.lastSignal.dir === 'buy' ? 'BELI' : 'JUAL', price: ch.lastSignal.price, tfTxt: ` · TF ${TFS[state.tf].label || TFS[state.tf].interval}` }, 0);
+  }
+  srChartSeen[scope] = t;
+}
+
+/* Versi pasar: srBuy/srSell harian dari baris sinyal server */
+function checkMarketSr(rows) {
+  const now = Date.now();
+  const dk = dayKeyJakarta();
+  const hits = [];
+  for (const r of rows) {
+    if (!r || r.error) continue;
+    for (const [flag, dir] of [[r.srBuy, 'BELI'], [r.srSell, 'JUAL']]) {
+      if (!flag) continue;
+      const key = String(r.symbol) + '|' + dir + '|' + dk;
+      if (!srpFired[key]) { srpFired[key] = now; hits.push({ sym: r.symbol, dir, price: r.price, risk: r.risk, tfTxt: '' }); }
+    }
+  }
+  for (const k of Object.keys(srpFired)) if (now - srpFired[k] > 14 * 864e5) { delete srpFired[k]; }
+  lsSet(SRP_FIRED_KEY, srpFired);
+  const initDone = prefGetRaw(SRP_INIT_KEY);
+  try { localStorage.setItem(SRP_INIT_KEY, '1'); } catch (e) {}
+  if (!initDone) return; // baseline pertama → tandai tanpa notifikasi
+  if (!srpAlertOn || !hits.length) return;
+  hits.slice(0, 5).forEach((h, i) => fireSr(h, i));
+  if (hits.length > 5) toast(`🛡️ +${hits.length - 5} tanda S&R lain — lihat Riwayat Notifikasi.`, 'ok');
+}
+
 function checkMarketKalman(rows) {
   const now = Date.now();
   const dk = dayKeyJakarta();

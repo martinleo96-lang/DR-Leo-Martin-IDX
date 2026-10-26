@@ -622,10 +622,65 @@ function kalmanTrend(bars, p1 = 0.01, p2 = 0.01, mNoise = 500, n2 = 10, r1 = 10,
   };
 }
 
+/* ============================================================
+   S&R Power Channel (port Pine "ChartPrime", overlay channel):
+   Kanal = harga tertinggi & terendah `length` bar terakhir — garis
+   resistance = highMax + 0.5·ATR(200), support = lowMin − 0.5·ATR(200).
+   Zona BUY  = support ± 0.5·ATR  | Zona SELL = resistance ± 0.5·ATR.
+   Tanda ◈ BELI  : low kembali DI ATAS tepi zona buy  (pantulan support)
+   Tanda ◈ JUAL  : high kembali DI BAWAH tepi zona sell (rejection resistance)
+   buyPower/sellPower = jumlah candle naik/turun dalam `length` bar.
+   ============================================================ */
+function srPowerChannel(bars, length = 130, atrLen = 200) {
+  const n = bars ? bars.length : 0;
+  if (n < Math.max(length, atrLen) + 2) return null;
+
+  // ATR Wilder (setia ta.atr): seed SMA atrLen, lalu smoothing RMA
+  const trs = [];
+  for (let i = 1; i < n; i++) {
+    const h = bars[i].high, l = bars[i].low, pc = bars[i - 1].close;
+    trs.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+  }
+  let atr = 0;
+  for (let i = 0; i < trs.length; i++) {
+    if (i < atrLen) atr += trs[i] / atrLen;
+    else atr = (atr * (atrLen - 1) + trs[i]) / atrLen;
+  }
+  const half = atr * 0.5;
+
+  const start = Math.max(0, n - length);
+  let hi = -Infinity, lo = Infinity, hiIdx = -1, loIdx = -1, buy = 0, sell = 0;
+  for (let i = start; i < n; i++) {
+    if (bars[i].high > hi) { hi = bars[i].high; hiIdx = i; }
+    if (bars[i].low < lo)  { lo = bars[i].low;  loIdx = i; }
+    if (bars[i].close > bars[i].open) buy++;
+    else if (bars[i].close < bars[i].open) sell++;
+  }
+
+  const resLine = hi + half, supLine = lo - half;
+  const resBot = hi - half, supTop = lo + half;           // tepi dalam zona
+  const mid = (hi + lo) / 2;
+
+  const signals = [];
+  for (let k = n - 1; k >= Math.max(start + 1, 1); k--) {
+    const cur = bars[k], older = bars[k - 1];
+    if (cur.low > supTop && older.low <= supTop)
+      signals.push({ dir: 'buy', time: cur.time, price: cur.low });
+    if (cur.high < resBot && older.high >= resBot)
+      signals.push({ dir: 'sell', time: cur.time, price: cur.high });
+  }
+  signals.sort((a, b) => String(a.time) < String(b.time) ? -1 : 1);
+  const lastT = String(bars[n - 1].time);
+  const lastSignal = signals.find(x => String(x.time) === lastT) || null;
+
+  return { hi, lo, hiIdx, loIdx, mid, resLine, supLine, resBot, supTop,
+           buyPower: buy, sellPower: sell, signals, lastSignal, length: n - start };
+}
+
 return {
   emaArr, rsiArr, macdArr,
   smaOn, emaOn, wmaOn, vwmaOn, hullOn,
   stochRaw, cciRaw, aoRaw, willrRaw, bbpRaw, uoRaw, adxRaw,
-  computeRatings, labelOf, detectOrderBlocks, classifyRisk, emaCrossNow, vixFix, kalmanTrend,
+  computeRatings, labelOf, detectOrderBlocks, classifyRisk, emaCrossNow, vixFix, kalmanTrend, srPowerChannel,
 };
 });
