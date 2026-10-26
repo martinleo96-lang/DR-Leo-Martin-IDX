@@ -1,0 +1,16 @@
+# Konfigurasi Cloudflare Workers — versi cadangan app
+name = "dr-leo-martin-idx"
+compatibility_date = "2025-09-23"
+
+# Skrip utama: bundle satu file hasil cf/build-worker.js
+main = "cf/worker-bundle.js"
+
+# File statis UI (index.html, app.js, ikon, dst) dilayani otomatis;
+# request yang tidak cocok file statis → diteruskan ke worker (API + SPA fallback)
+[assets]
+directory = "./public"
+not_found_handling = "single-page-application"
+
+# Pemindai tiap 2 menit (batch kecil, hemat CPU free)
+[triggers]
+crons = ["*/2 * * * *"]
