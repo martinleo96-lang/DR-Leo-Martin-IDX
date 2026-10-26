@@ -29,6 +29,10 @@ dengan tampilan dan fitur mirip TradingView.
   tipis, atau lonjakan volume tak wajar) — dihitung dari data harian 1 tahun
   (harga, nilai transaksi median 20 hari, ATR, hari tanpa volume, frekuensi ARA/ARB,
   rasio lonjakan volume), tampil sebagai badge + chip filter di tab Sinyal
+- **Gerak Pasar** (tab Sinyal, ala Google Finance): ▲ Penguat Terkuat · ▼ Pelemah
+  Terdalam · 💰 Paling Aktif (nilai transaksi) — dari seluruh 845 saham, klik untuk buka chart
+- **Panel Detail** ala Google Finance: OHLC, Prev Close, Rentang Hari Ini, Volume,
+  Rerata Volume 20, 52-Minggu High/Low + tautan "Referensi: Google Finance ↗" per saham
 - **Pencarian seluruh saham IDX** (845 emiten + sektor) via kotak pencarian
 - **Alert sinyal otomatis (rutin tiap 5 menit)**: setiap kali ada saham yang *berubah menjadi*
   **Strong Buy / Strong Sell**, aplikasi langsung memberi notifikasi (bunyi + toast + notifikasi

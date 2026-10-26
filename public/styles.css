@@ -510,6 +510,58 @@ button, input, select { font-family: inherit; }
 .al-form #priceFields { display: flex; flex-direction: column; gap: 10px; }
 
 /* ---------- Auto-alert sinyal & riwayat ---------- */
+/* ===== Gerak Pasar (market movers) ===== */
+.mv-wrap {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 4px 8px 8px;
+}
+.mv-col {
+  background: #1e222d;
+  border: 1px solid #2a2e39;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.mv-head {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 5px 8px;
+  letter-spacing: .3px;
+}
+.mv-head.up { color: #26a69a; }
+.mv-head.down { color: #ef5350; }
+.mv-head.act { color: #ffb74d; }
+.mv-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  border-top: 1px solid rgba(42, 46, 57, .5);
+}
+.mv-item:hover { background: #2a2e39; }
+.mv-item span.up { color: #26a69a; }
+.mv-item span.down { color: #ef5350; }
+.mv-item span.act { color: #ffb74d; font-size: 10px; white-space: nowrap; }
+
+/* link referensi eksternal (Google Finance) */
+.dt-gf {
+  display: block;
+  margin: 10px 10px 2px;
+  padding: 8px 10px;
+  text-align: center;
+  font-size: 12px;
+  color: #2962ff;
+  background: rgba(41, 98, 255, .08);
+  border: 1px solid rgba(41, 98, 255, .25);
+  border-radius: 8px;
+  text-decoration: none;
+}
+.dt-gf:hover { background: rgba(41, 98, 255, .16); }
+
 /* ===== Klasifikasi risiko saham ===== */
 .rk {
   display: inline-block;

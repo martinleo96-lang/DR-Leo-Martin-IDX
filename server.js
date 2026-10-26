@@ -517,6 +517,8 @@ async function getSignal(entry) {
       riskNote: risk ? risk.note : null,
       emaxBuy: emax.buy,
       emaxSell: emax.sell,
+      vol: (bars.length ? bars[bars.length - 1].volume : 0) || 0,
+      val: Math.round(price * ((bars.length ? bars[bars.length - 1].volume : 0) || 0)),
       synthetic: false,
     };
   } catch (e) {

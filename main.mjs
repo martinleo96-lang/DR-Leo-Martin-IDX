@@ -112,7 +112,10 @@ async function getSignal(entry) {
       oscScore: +rating.oscS.score.toFixed(3), maScore: +rating.maS.score.toFixed(3),
       sector: entry.sector || null,
       risk: risk ? risk.code : null, riskNote: risk ? risk.note : null,
-      emaxBuy: emax.buy, emaxSell: emax.sell, synthetic: false,
+      emaxBuy: emax.buy, emaxSell: emax.sell,
+      vol: (bars.length ? bars[bars.length - 1].volume : 0) || 0,
+      val: Math.round(price * ((bars.length ? bars[bars.length - 1].volume : 0) || 0)),
+      synthetic: false,
     };
   } catch (e) {
     return { symbol: entry.symbol, name: entry.name, error: true };

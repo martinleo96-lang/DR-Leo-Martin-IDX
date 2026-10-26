@@ -422,6 +422,33 @@ function renderDetailsExtra() {
   $('#dBars').textContent = fmtNum(bars.length);
 }
 
+/* Statistik tambahan ala Google Finance: prev close, rentang hari ini, tautan referensi */
+let quoteExtraTimer = 0;
+function loadQuoteExtra() {
+  const gf = $('#gfLink');
+  if (gf) {
+    const sym = state.symbol;
+    const gfSym = sym === '^JKSE' ? 'COMPOSITE:IDX' : sym === '^JKLQ45' ? 'LQ45:IDX'
+      : sym.startsWith('^') ? null : String(sym).replace(/\.JK$/, '') + ':IDX';
+    gf.href = gfSym ? 'https://www.google.com/finance/quote/' + gfSym : 'https://www.google.com/finance/';
+  }
+  clearTimeout(quoteExtraTimer);
+  quoteExtraTimer = setTimeout(() => {
+    fetch('/api/quotes?symbols=' + encodeURIComponent(state.symbol))
+      .then(r => r.json())
+      .then(j => {
+        const q = (j.data || [])[0];
+        if (!q || q.error) return;
+        const idx = isIndex();
+        if (q.prevClose != null) $('#dPrev').textContent = fmtPrice(q.prevClose, idx);
+        if (q.dayLow != null && q.dayHigh != null) {
+          $('#dDayRange').textContent = fmtPrice(q.dayLow, idx) + ' – ' + fmtPrice(q.dayHigh, idx);
+        }
+      })
+      .catch(() => {});
+  }, 60);
+}
+
 /* ============================================================
    ANALISIS TEKNIKAL OTOMATIS (ala TradingView)
    ============================================================ */
@@ -540,6 +567,7 @@ async function loadChart(symbol, opts = {}) {
     updateLegend();
     renderHeaderQuote();
     renderDetailsExtra();
+    loadQuoteExtra();
     renderTA();
     setActiveRow();
     $('#sbSource').textContent = state.synthetic
@@ -1272,9 +1300,35 @@ $('#sigRisk').addEventListener('click', (e) => {
   renderSignals();
 });
 $('#sigList').addEventListener('click', (e) => {
-  const row = e.target.closest('.sg-row');
-  if (row) onSelectSymbol(row.dataset.sym, row.dataset.name);
+  const row = e.target.closest('.sg-row');  if (row) onSelectSymbol(row.dataset.sym, row.dataset.name);
 });
+$('#mvWrap').addEventListener('click', (e) => {
+  const it = e.target.closest('.mv-item');
+  if (it) onSelectSymbol(it.dataset.sym, it.dataset.name);
+});
+
+/* ---- GERAK PASAR (ala Google Finance: movers seluruh IDX) ---- */
+function renderMovers() {
+  const el = $('#mvWrap');
+  if (!el) return;
+  const stocks = signals.filter(s => !String(s.symbol).startsWith('^') && s.price != null);
+  if (!stocks.length) { el.innerHTML = ''; return; }
+  const topGainers = [...stocks].sort((a, b) => (b.changePct || 0) - (a.changePct || 0)).slice(0, 5);
+  const topLosers = [...stocks].sort((a, b) => (a.changePct || 0) - (b.changePct || 0)).slice(0, 5);
+  const mostActive = [...stocks].sort((a, b) => (b.val || 0) - (a.val || 0)).slice(0, 5);
+  const fmtVal = (v) => v >= 1e12 ? (v / 1e12).toFixed(2).replace('.', ',') + ' T'
+    : v >= 1e9 ? (v / 1e9).toFixed(1).replace('.', ',') + ' M' : (v / 1e6).toFixed(0) + ' jt';
+  const col = (title, cls, arr, valFn) =>
+    `<div class="mv-col"><div class="mv-head ${cls}">${title}</div>` +
+    arr.map(s =>
+      `<div class="mv-item" data-sym="${escapeHtml(s.symbol)}" data-name="${escapeHtml(s.name || '')}">` +
+      `<b>${rkIcon(s.symbol)}${escapeHtml(s.symbol)}</b><span class="${cls}">${valFn(s)}</span></div>`
+    ).join('') + '</div>';
+  el.innerHTML =
+    col('▲ Penguat', 'up', topGainers, s => fmtPct(s.changePct)) +
+    col('▼ Pelemah', 'down', topLosers, s => fmtPct(s.changePct)) +
+    col('💰 Teraktif', 'act', mostActive, s => 'Rp ' + fmtVal(s.val || 0));
+}
 
 async function loadSignals(force) {
   const list = $('#sigList');
@@ -1326,6 +1380,7 @@ function updateWlSigDots() {
 }
 
 function renderSignals() {
+  renderMovers();
   // --- chip kelas risiko ---
   const riskEl = $('#sigRisk');
   if (riskEl) {
