@@ -93,46 +93,59 @@ async function getDailyBars(symInput) {
 }
 
 /* BARS_DB: bar harian hasil pindai (memori) + /api/emax —
-   alert EMA cross dengan periode yang bisa diubah pengguna */
+   BUY pakai pasangan sendiri (bawaan 3×7 naik), SELL pakai pasangan sendiri
+   (bawaan 2×6 turun) — sesuai skema awal app, bisa diubah pengguna */
 const BARS_DB = new Map();
-function computeEmaxCustom(bars, fast, slow) {
-  if (!bars || bars.length < Math.max(slow + 3, fast * 2 + 1)) return null;
+function computeEmaxCross(bars, fast, slow) {
+  if (!bars || bars.length < Math.max(slow + 3, fast * 2 + 1)) return { buy: null, sell: null };
   const c = bars.map(b => b.close);
   const A = TALib.emaOn(c, fast), B = TALib.emaOn(c, slow);
-  let at = -1, dir = null;
+  let buyAt = -1, sellAt = -1;
   for (let i = 1; i < c.length; i++) {
     const fa = A[i], fb = B[i], pa = A[i - 1], pb = B[i - 1];
     if (![fa, fb, pa, pb].every(Number.isFinite)) continue;
-    if (pa <= pb && fa > fb) { at = i; dir = 'BUY'; }
-    else if (pa >= pb && fa < fb) { at = i; dir = 'SELL'; }
+    if (pa <= pb && fa > fb) buyAt = i;
+    else if (pa >= pb && fa < fb) sellAt = i;
   }
-  if (at < 0) return null;
-  const age = bars.length - 1 - at;
-  if (age > 5) return null;
-  return { dir: dir, age: age, t: bars[at].time || null };
+  const lastIdx = bars.length - 1;
+  const mk = (at) => {
+    if (at < 0) return null;
+    const age = lastIdx - at;
+    return age <= 5 ? { age, t: bars[at].time || null } : null;
+  };
+  return { buy: mk(buyAt), sell: mk(sellAt) };
 }
 function apiEmax(u) {
-  const fast = Math.min(200, Math.max(2, parseInt(u.searchParams.get('fast'), 10) || 3));
-  const slow = Math.min(300, Math.max(3, parseInt(u.searchParams.get('slow'), 10) || 7));
-  if (fast >= slow) return sendJson({ error: 'EMA cepat harus lebih kecil dari EMA lambat.' }, 400);
+  const p = (k, d, lo, hi) => Math.min(hi, Math.max(lo, parseInt(u.searchParams.get(k), 10) || d));
+  const fastB = p('fastB', p('fast', 3, 2, 200), 2, 200);
+  const slowB = p('slowB', p('slow', 7, 3, 300), 3, 300);
+  const fastS = p('fastS', 2, 2, 200);
+  const slowS = p('slowS', 6, 3, 300);
+  if (fastB >= slowB) return sendJson({ error: 'BUY: EMA cepat harus lebih kecil dari EMA lambat.' }, 400);
+  if (fastS >= slowS) return sendJson({ error: 'SELL: EMA cepat harus lebih kecil dari EMA lambat.' }, 400);
   const out = [];
   for (const [sym, bars] of BARS_DB) {
-    if (sym.startsWith('^')) continue;
-    const r = computeEmaxCustom(bars, fast, slow);
-    if (!r) continue;
+    if (sym.startsWith('^') || !bars || bars.length < 10) continue;
+    const rB = computeEmaxCross(bars, fastB, slowB).buy;
+    const rS = computeEmaxCross(bars, fastS, slowS).sell;
+    if (!rB && !rS) continue;
     const entry = UNI_MAP.get(sym);
     const last = bars[bars.length - 1], prv = bars.length > 1 ? bars[bars.length - 2].close : last.close;
-    out.push({
+    const base = {
       symbol: sym, name: entry ? entry.name : sym,
       sector: entry && entry.sector ? entry.sector : null,
       price: last.close,
       changePct: prv ? ((last.close - prv) / prv) * 100 : 0,
-      dir: r.dir, age: r.age, t: r.t,
-    });
+    };
+    if (rB) out.push({ ...base, dir: 'BUY', age: rB.age, t: rB.t });
+    if (rS) out.push({ ...base, dir: 'SELL', age: rS.age, t: rS.t });
   }
   const rank = { BUY: 0, SELL: 1 };
   out.sort((a, b) => rank[a.dir] - rank[b.dir] || a.age - b.age || (b.changePct - a.changePct));
-  return sendJson({ data: out, fast, slow, total: out.length, coverage: BARS_DB.size, ts: Date.now() });
+  return sendJson({
+    data: out, total: out.length, coverage: BARS_DB.size, ts: Date.now(),
+    buy: { fast: fastB, slow: slowB }, sell: { fast: fastS, slow: slowS },
+  });
 }
 
 /* ---------------- sinyal per simbol ---------------- */

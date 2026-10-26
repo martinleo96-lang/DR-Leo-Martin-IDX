@@ -171,18 +171,29 @@
         </button>
         <div class="emx-body hidden" id="emxBody">
           <div class="emx-set">
-            <label>EMA cepat <input id="emxFast" type="number" min="2" max="200" step="1" value="3" /></label>
-            <label>EMA lambat <input id="emxSlow" type="number" min="3" max="300" step="1" value="7" /></label>
-            <button id="emxApply" type="button">Terapkan</button>
+            <span class="emx-tag up">🟢 BUY</span>
+            <label>EMA<input id="emxFastB" type="number" min="2" max="200" step="1" value="3" /></label>
+            <span class="emx-x">cross naik</span>
+            <label>EMA<input id="emxSlowB" type="number" min="3" max="300" step="1" value="7" /></label>
+          </div>
+          <div class="emx-set">
+            <span class="emx-tag down">🔴 SELL</span>
+            <label>EMA<input id="emxFastS" type="number" min="2" max="200" step="1" value="2" /></label>
+            <span class="emx-x">cross turun</span>
+            <label>EMA<input id="emxSlowS" type="number" min="3" max="300" step="1" value="6" /></label>
+          </div>
+          <div class="emx-set emx-act">
+            <button id="emxApply" type="button">Terapkan & Pindai</button>
+            <span class="emx-hint2">harian, cross ≤ 5 hari bursa</span>
           </div>
           <div class="emx-presets" id="emxPresets">
-            <button data-p="3,7" type="button">3×7 cepat</button>
-            <button data-p="5,20" type="button">5×20</button>
-            <button data-p="9,21" type="button">9×21</button>
-            <button data-p="20,50" type="button">20×50</button>
-            <button data-p="50,200" type="button">50×200</button>
+            <button data-p="3,7,2,6" type="button">Bawaan 3×7 / 2×6</button>
+            <button data-p="5,20,5,20" type="button">5×20</button>
+            <button data-p="9,21,9,21" type="button">9×21</button>
+            <button data-p="20,50,20,50" type="button">20×50</button>
+            <button data-p="50,200,50,200" type="button">50×200</button>
           </div>
-          <div class="emx-hint">Cross EMA harian ≤ 5 hari bursa terakhir di seluruh pasar IDX.</div>
+          <div class="emx-hint">Arah cross setiap pasangan: cross ke atas = BUY, cross ke bawah = SELL.</div>
           <div class="emx-list" id="emxList"><div class="al-empty">Buka untuk melihat daftar cross.</div></div>
         </div>
       </div>

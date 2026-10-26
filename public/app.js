@@ -1308,11 +1308,15 @@ $('#mvWrap').addEventListener('click', (e) => {
   if (it) onSelectSymbol(it.dataset.sym, it.dataset.name);
 });
 
-/* ---- KOTAK ALERT EMA CROSS (periode diubah-ubah, tersimpan) ---- */
-let emxCfg = { fast: 3, slow: 7 };   // default = pengaturan alert BUY/SELL bawaan app
+/* ---- KOTAK ALERT EMA CROSS — pola bawaan app: BUY 3×7 ▲ · SELL 2×6 ▼ ---- */
+let emxCfg = { fastB: 3, slowB: 7, fastS: 2, slowS: 6 };
 try {
   const saved = JSON.parse(localStorage.getItem('idx-terminal-emaxcfg') || 'null');
-  if (saved && saved.fast >= 2 && saved.slow > saved.fast) emxCfg = saved;
+  if (saved) {
+    // migrasi format lama {fast,slow} → BUY pair pakai itu, SELL tetap 2×6
+    if (saved.fastB) emxCfg = { ...emxCfg, ...saved };
+    else if (saved.fast) emxCfg = { fastB: saved.fast, slowB: saved.slow, fastS: 2, slowS: 6 };
+  }
 } catch (e) {}
 let emxData = null;
 
@@ -1320,11 +1324,11 @@ function wireEmaxBox() {
   const body = $('#emxBody');
   if (!body) return;
   const syncLabels = () => {
-    $('#emxFast').value = emxCfg.fast;
-    $('#emxSlow').value = emxCfg.slow;
-    $('#emxCfg').textContent = emxCfg.fast + '×' + emxCfg.slow;
-    $all('#emxPresets button').forEach(b =>
-      b.classList.toggle('on', b.dataset.p === emxCfg.fast + ',' + emxCfg.slow));
+    $('#emxFastB').value = emxCfg.fastB; $('#emxSlowB').value = emxCfg.slowB;
+    $('#emxFastS').value = emxCfg.fastS; $('#emxSlowS').value = emxCfg.slowS;
+    $('#emxCfg').textContent = emxCfg.fastB + '×' + emxCfg.slowB + ' · ' + emxCfg.fastS + '×' + emxCfg.slowS;
+    const key = [emxCfg.fastB, emxCfg.slowB, emxCfg.fastS, emxCfg.slowS].join(',');
+    $all('#emxPresets button').forEach(b => b.classList.toggle('on', b.dataset.p === key));
   };
   syncLabels();
   emxApply._sync = syncLabels;
@@ -1337,8 +1341,9 @@ function wireEmaxBox() {
   $('#emxPresets').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-p]');
     if (!b) return;
-    const [f, s] = b.dataset.p.split(',').map(Number);
-    $('#emxFast').value = f; $('#emxSlow').value = s;
+    const [fb, sb, fs, ss] = b.dataset.p.split(',').map(Number);
+    $('#emxFastB').value = fb; $('#emxSlowB').value = sb;
+    $('#emxFastS').value = fs; $('#emxSlowS').value = ss;
     emxApply();
   });
   $('#emxApply').addEventListener('click', () => emxApply());
@@ -1349,10 +1354,12 @@ function wireEmaxBox() {
 }
 
 async function emxApply() {
-  const f = Math.max(2, parseInt($('#emxFast').value, 10) || 3);
-  const s = Math.max(3, parseInt($('#emxSlow').value, 10) || 7);
-  if (f >= s) { notify('EMA cepat harus < EMA lambat'); return; }
-  emxCfg = { fast: f, slow: s };
+  const num = (id, d) => Math.max(2, parseInt($(id).value, 10) || d);
+  const fb = num('#emxFastB', 3), sb = num('#emxSlowB', 7);
+  const fs = num('#emxFastS', 2), ss = num('#emxSlowS', 6);
+  if (fb >= sb) { notify('BUY: EMA cepat harus < EMA lambat'); return; }
+  if (fs >= ss) { notify('SELL: EMA cepat harus < EMA lambat'); return; }
+  emxCfg = { fastB: fb, slowB: sb, fastS: fs, slowS: ss };
   try { localStorage.setItem('idx-terminal-emaxcfg', JSON.stringify(emxCfg)); } catch (e) {}
   if (emxApply._sync) emxApply._sync();
   emxData = null;
@@ -1361,9 +1368,10 @@ async function emxApply() {
 
 async function loadEmaxCross() {
   const list = $('#emxList');
-  list.innerHTML = '<div class="wl-skel">Memindai EMA ' + emxCfg.fast + '×' + emxCfg.slow + ' di seluruh pasar…</div>';
+  list.innerHTML = `<div class="wl-skel">Memindai BUY ${emxCfg.fastB}×${emxCfg.slowB} · SELL ${emxCfg.fastS}×${emxCfg.slowS} di seluruh pasar…</div>`;
   try {
-    const r = await fetch(`/api/emax?fast=${emxCfg.fast}&slow=${emxCfg.slow}`);
+    const qs = `fastB=${emxCfg.fastB}&slowB=${emxCfg.slowB}&fastS=${emxCfg.fastS}&slowS=${emxCfg.slowS}`;
+    const r = await fetch('/api/emax?' + qs);
     const j = await r.json();
     if (j.error) throw new Error(j.error);
     emxData = j.data;
@@ -1410,9 +1418,9 @@ function renderEmaxList(coverage) {
   const buy = emxData.filter(o => o.dir === 'BUY');
   const sell = emxData.filter(o => o.dir === 'SELL');
   list.innerHTML =
-    grp('🟢 CROSS NAIK (EMA ' + emxCfg.fast + ' ↑ ' + emxCfg.slow + ')', 'sg-buy', buy) +
-    grp('🔴 CROSS TURUN (EMA ' + emxCfg.fast + ' ↓ ' + emxCfg.slow + ')', 'sg-sell', sell) +
-    '<div class="emx-note"><small>Waktu cross = tanggal penutupan bar harian (penutupan sesi bursa WIB). Klik saham untuk membuka chart.</small></div>';
+    grp('🟢 CROSS NAIK — EMA ' + emxCfg.fastB + ' ↑ ' + emxCfg.slowB, 'sg-buy', buy) +
+    grp('🔴 CROSS TURUN — EMA ' + emxCfg.fastS + ' ↓ ' + emxCfg.slowS, 'sg-sell', sell) +
+    '<div class="emx-note"><small>Waktu cross = tanggal penutupan bar harian (penutupan sesi bursa WIB). Bawaan app: BUY 3×7 ▲ · SELL 2×6 ▼. Klik saham untuk membuka chart.</small></div>';
 }
 wireEmaxBox();
 
