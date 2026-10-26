@@ -568,6 +568,7 @@ async function getSignal(entry) {
     const risk = isIdx ? null : TALib.classifyRisk(bars, { liquid: LIQUID.has(entry.symbol) });
     // Cross EMA pada bar harian terbaru: 3↑7 BUY, 2↓6 SELL
     const emax = TALib.emaCrossNow(bars);
+    const kal = TALib.kalmanTrend(bars);
     const vfx = isIdx ? null : TALib.vixFix(bars); // Williams Vix Fix: titik terendah/tertinggi ekstrem
     return {
       symbol: entry.symbol,
@@ -584,6 +585,8 @@ async function getSignal(entry) {
       riskNote: risk ? risk.note : null,
       emaxBuy: emax.buy,
       emaxSell: emax.sell,
+      kDir: kal ? kal.dir : null, kFlip: !!(kal && kal.flip),
+      kStr: kal ? +kal.strength.toFixed(1) : null,
       vfxB: !!(vfx && vfx.bottom),
       vfxT: !!(vfx && vfx.top),
       vol: (bars.length ? bars[bars.length - 1].volume : 0) || 0,

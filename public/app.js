@@ -1421,6 +1421,7 @@ async function loadSignals(force) {
     signals = (j.data || []).filter(x => !x.error && x.label);
     checkSignalChanges(signals);
     checkMarketEmaX(signals);
+    checkMarketKalman(signals);
     checkMarketVfx(signals);
     if (wlSort !== 'bawaan') loadWatchlist(false); // susun ulang daftar pantau sesuai mode urutan
     autoObScan();
@@ -1559,6 +1560,7 @@ function histIcon(h) {
   if (h.kind === 'zona') return '🎯';
   if (h.kind === 'konflu') return '💎';
   if (h.kind === 'emax') return '⚡';
+  if (h.kind === 'kalman') return '🌀';
   if (h.kind === 'rekap') return '📋';
   if (h.kind === 'sinyal') {
     if (h.toLabel === 'Strong Buy') return '🚀';
@@ -1664,6 +1666,9 @@ function initSignalAlertPref() {
   wirePrefChk('#emaxAllChk', () => mxAlertOn, v => { mxAlertOn = v; prefSet(PREF_MXALERT, v); },
     '⚡ Alert EMA cross seluruh pasar AKTIF — setiap cross harian 3/7 & 2/6 di 845 saham',
     '🔕 Alert EMA cross seluruh pasar dinonaktifkan', () => checkMarketEmaX(signals));
+  wirePrefChk('#kalAlertChk', () => kalAlertOn, v => { kalAlertOn = v; prefSet(PREF_KALALERT, v); },
+    '🌀 Alert perubahan tren Kalman AKTIF — setiap tren harian berbalik di 845 saham + indeks',
+    '🔕 Alert perubahan tren Kalman dinonaktifkan', () => checkMarketKalman(signals));
   wirePrefChk('#vfxAlertChk', () => vfxAlertOn, v => { vfxAlertOn = v; prefSet(PREF_VFXALERT, v); },
     '🟩 Alert Vix Fix AKTIF — harga sentuh titik terendah/tertinggi ekstrem',
     '🔕 Alert Vix Fix dinonaktifkan', () => checkMarketVfx(signals));
@@ -1933,6 +1938,13 @@ const MX_INIT_KEY = 'idx-terminal-mxinit-v1';
 let mxAlertOn = prefGet(PREF_MXALERT, true);
 let mxFired = lsGet(MX_FIRED_KEY, {});
 
+/* 🌀 Kalman Trend Strength (Parkinson) — alert tren harian berbalik arah */
+const PREF_KALALERT = 'idx-terminal-pref-kalalert';
+const KAL_FIRED_KEY = 'idx-terminal-kalfired-v1';
+const KAL_INIT_KEY = 'idx-terminal-kalinit-v1';
+let kalAlertOn = prefGet(PREF_KALALERT, true);
+let kalFired = lsGet(KAL_FIRED_KEY, {});
+
 function checkMarketEmaX(rows) {
   const now = Date.now();
   const dk = dayKeyJakarta();
@@ -1956,6 +1968,36 @@ function checkMarketEmaX(rows) {
   if (!mxAlertOn || !hits.length) return;
   hits.slice(0, 5).forEach((h, i) => fireMx(h, i));
   if (hits.length > 5) toast(`⚡ +${hits.length - 5} EMA cross lain — lihat Riwayat Notifikasi.`, 'ok');
+}
+function checkMarketKalman(rows) {
+  const now = Date.now();
+  const dk = dayKeyJakarta();
+  const hits = [];
+  for (const r of rows) {
+    if (!r || r.error || !r.kFlip || !r.kDir) continue;
+    const key = String(r.symbol) + '|' + (r.kDir > 0 ? 'UP' : 'DOWN') + '|' + dk;
+    if (!kalFired[key]) {
+      kalFired[key] = now;
+      hits.push({ sym: r.symbol, dir: r.kDir > 0 ? 'UP' : 'DOWN', price: r.price, risk: r.risk, str: r.kStr });
+    }
+  }
+  for (const k of Object.keys(kalFired)) if (now - kalFired[k] > 14 * 864e5) { delete kalFired[k]; }
+  lsSet(KAL_FIRED_KEY, kalFired);
+  const initDone = prefGetRaw(KAL_INIT_KEY);
+  try { localStorage.setItem(KAL_INIT_KEY, '1'); } catch (e) {}
+  if (!initDone) return; // baseline pertama → tandai tanpa notifikasi
+  if (!kalAlertOn || !hits.length) return;
+  hits.slice(0, 5).forEach((h, i) => fireKalman(h, i));
+  if (hits.length > 5) toast(`🌀 +${hits.length - 5} tren lain juga berbalik — lihat Riwayat Notifikasi.`, 'ok');
+}
+function fireKalman(h, i) {
+  const up = h.dir === 'UP';
+  const rk = h.risk && RK_META[h.risk] ? ' • ' + RK_META[h.risk].icon : '';
+  const idxCls = String(h.sym).startsWith('^');
+  const strTxt = h.str != null ? ` · kekuatan ${Math.abs(h.str)}%` : '';
+  const msg = `🌀 ${h.sym}${rk} — TREN BERBALIK ${up ? '🟩 NAIK' : '🟥 TURUN'} (Kalman harian${strTxt}) @ ${fmtPrice(h.price, idxCls)}`;
+  pushHistory('kalman', msg, h.sym, h.dir);
+  if (i < 5) setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser(`DR Leo Martin IDX — Tren ${h.sym} berbalik ${up ? 'NAIK' : 'TURUN'}`, msg); }, i * 600);
 }
 function fireMx(h, i) {
   const buy = h.dir === 'BUY';

@@ -537,10 +537,95 @@ function vixFix(bars, pd = 22, bbl = 20, mult = 2.0, lb = 50, ph = 0.85) {
   return { bottom, top, bVal: +wL[i].toFixed(1), tVal: +wH[i].toFixed(2) };
 }
 
+/* ============================================================
+   Adaptive Kalman Filter — Trend Strength Oscillator
+   Port setia Pine "Kalman Trend Strength Oscillator (Zeiierman)",
+   model PARKINSON-ADJUSTED (noise adaptif dari rentang High–Low;
+   aman untuk IDX: volume sering 0 pada saham tidur & indeks).
+   Mengembalikan arah tren terkini + apakah arah BERBALIK (flip)
+   pada bar terakhir. Parameter = default script asli.
+   ============================================================ */
+function kalmanTrend(bars, p1 = 0.01, p2 = 0.01, mNoise = 500, n2 = 10, r1 = 10, r2 = 10) {
+  const n = bars ? bars.length : 0;
+  if (n < n2 + r2 + r1 + 2) return null;
+
+  // State X = [level, velocity]; F = [[1,1],[1,0]] (persis script asli)
+  let X0 = bars[0].close, X1 = bars[0].close;
+  let P00 = 1, P01 = 0, P10 = 0, P11 = 1;          // P = I
+  const norm = [];                                  // seri oscillator/A*100
+  const tsSeries = [];                              // trend_strength (WMA r2)
+  const oscLine = [];                               // final: WMA r1
+  const buf = [];
+
+  const wmaLast = (arr, p) => {
+    if (arr.length < p) return null;
+    let num = 0, den = 0;
+    for (let k = 0; k < p; k++) { const w = k + 1; num += arr[arr.length - p + k] * w; den += w; }
+    return num / den;
+  };
+
+  for (let i = 0; i < n; i++) {
+    const src = bars[i].close;
+    if (src == null || !isFinite(src)) continue;
+
+    // --- predict ---
+    X0 = X0 + X1; X1 = 0;                           // F[1,1]=0 → vel diprediksi 0 (quirk setia)
+    const q01 = p1 * p2;
+    const tP00 = P00 + P01 + P10 + P11 + p1;        // F·P·Fᵀ + Q
+    const tP01 = P00 + P10 + q01;
+    const tP10 = P00 + P01 + q01;
+    const tP11 = P00 + p2;
+    P00 = tP00; P01 = tP01; P10 = tP10; P11 = tP11;
+
+    // --- noise adaptif Parkinson: R *= (1 + range/prevRange) ---
+    let rAdj = mNoise;
+    if (i > 2) {
+      const cur = bars[i].high - bars[i].low;
+      const prev = Math.max(bars[i - 1].high - bars[i - 1].low, 1);
+      rAdj = mNoise * (1 + cur / prev);
+    }
+
+    // --- update ---
+    const S = P00 + rAdj;                           // H·P·Hᵀ + R
+    const K0 = P00 / S, K1 = P10 / S;
+    const y = src - X0;                             // innovation
+    X0 += K0 * y; X1 += K1 * y;
+    const uP00 = (1 - K0) * P00, uP01 = (1 - K0) * P01;   // P=(I−K·H)·P
+    const uP10 = -K1 * P00 + P10, uP11 = -K1 * P01 + P11;
+    P00 = uP00; P01 = uP01; P10 = uP10; P11 = uP11;
+
+    const osc = X1;                                 // velocity = kekuatan tren mentah
+    buf.push(osc);
+    if (buf.length >= n2) {
+      let A = 0; for (const v of buf) A = Math.max(A, Math.abs(v));
+      if (A > 0) {
+        norm.push((osc / A) * 100);
+        const ts = wmaLast(norm, r2);
+        if (ts != null) {
+          tsSeries.push(ts);
+          const line = wmaLast(tsSeries, r1);
+          if (line != null) oscLine.push(line);
+        }
+      }
+      buf.shift();
+    }
+  }
+  if (oscLine.length < 2) return null;
+  const cur = oscLine[oscLine.length - 1], prev = oscLine[oscLine.length - 2];
+  const dir = cur > 0 ? 1 : cur < 0 ? -1 : 0;
+  const prevDir = prev > 0 ? 1 : prev < 0 ? -1 : 0;
+  return {
+    dir, prevDir,
+    flip: dir !== 0 && prevDir !== 0 && dir !== prevDir,   // arah berbalik bar terakhir
+    osc: cur, strength: tsSeries[tsSeries.length - 1] || 0,
+    time: bars[n - 1] && bars[n - 1].time,
+  };
+}
+
 return {
   emaArr, rsiArr, macdArr,
   smaOn, emaOn, wmaOn, vwmaOn, hullOn,
   stochRaw, cciRaw, aoRaw, willrRaw, bbpRaw, uoRaw, adxRaw,
-  computeRatings, labelOf, detectOrderBlocks, classifyRisk, emaCrossNow, vixFix,
+  computeRatings, labelOf, detectOrderBlocks, classifyRisk, emaCrossNow, vixFix, kalmanTrend,
 };
 });

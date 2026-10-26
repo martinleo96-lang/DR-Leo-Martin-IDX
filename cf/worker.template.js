@@ -87,6 +87,7 @@ async function buildSignalRow(entry) {
   const isIdx = String(entry.s).startsWith('^');
   const risk = isIdx ? null : TALib.classifyRisk(bars, { liquid: LIQ.has(entry.s) });
   const emax = TALib.emaCrossNow(bars);
+  const kal = TALib.kalmanTrend(bars);
   const vfx = isIdx ? null : TALib.vixFix(bars);
   return {
     symbol: entry.s, name: entry.n, price,
@@ -97,6 +98,8 @@ async function buildSignalRow(entry) {
     sector: entry.sec || null,
     risk: risk ? risk.code : null, riskNote: risk ? risk.note : null,
     emaxBuy: emax.buy, emaxSell: emax.sell,
+    kDir: kal ? kal.dir : null, kFlip: !!(kal && kal.flip),
+    kStr: kal ? +kal.strength.toFixed(1) : null,
     vfxB: !!(vfx && vfx.bottom), vfxT: !!(vfx && vfx.top),
     vol: bars[bars.length - 1].volume || 0,
     val: Math.round(price * (bars[bars.length - 1].volume || 0)),
