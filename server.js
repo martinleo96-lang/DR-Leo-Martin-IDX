@@ -746,7 +746,7 @@ function serveStatic(u, res) {
       if (e) { res.writeHead(404); return res.end('Not found'); }
       res.writeHead(200, {
         'Content-Type': MIME[ext] || 'application/octet-stream',
-        'Cache-Control': ext === '.html' ? 'no-store' : 'public, max-age=3600',
+        'Cache-Control': ext === '.html' || ext === '.js' || ext === '.webmanifest' ? 'no-store' : 'public, max-age=3600',
       });
       res.end(buf);
     });

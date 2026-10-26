@@ -5,7 +5,7 @@
      memindai sinyal Strong Buy/Sell & Order Block baru di
      latar belakang lalu menampilkan notifikasi sistem
    ============================================================ */
-const CACHE = 'idx-terminal-v5';
+const CACHE = 'idx-terminal-v6';
 const SHELL = [
   '/', '/index.html', '/styles.css', '/app.js', '/ta-lib.js', '/manifest.webmanifest',
   '/vendor/lightweight-charts.js', '/icons/icon-192.png', '/icons/icon-512.png',
@@ -33,14 +33,17 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
+  if (url.origin !== self.location.origin) return; // font/CDN: biarkan browser
+  // NETWORK-FIRST untuk app shell: versi terbaru selalu terambil saat online,
+  // fallback ke cache hanya saat offline. (Cache-first lama bikin update nyangkut.)
   e.respondWith(
-    caches.match(e.request).then((hit) => hit || fetch(e.request).then((resp) => {
-      if (resp.ok && url.origin === self.location.origin) {
+    fetch(e.request).then((resp) => {
+      if (resp.ok) {
         const cp = resp.clone();
         caches.open(CACHE).then((c) => c.put(e.request, cp));
       }
       return resp;
-    }))
+    }).catch(() => caches.match(e.request))
   );
 });
 

@@ -2088,6 +2088,7 @@ function initPwa() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js').then((reg) => {
+        reg.update().catch(() => {}); // paksa cek versi sw.js terbaru tiap buka
         // Periodic Background Sync (Chrome Android, best effort)
         if ('periodicSync' in reg && navigator.permissions && navigator.permissions.query) {
           navigator.permissions.query({ name: 'periodic-background-sync' }).then((st) => {
@@ -2095,6 +2096,14 @@ function initPwa() {
           }).catch(() => {});
         }
       }).catch(() => {});
+    });
+    // Saat SW versi baru mengambil alih → muat ulang sekali otomatis (anti versi nyangkut)
+    let swReloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (swReloaded) return;
+      swReloaded = true;
+      toast('⬆️ Versi baru dipasang — memuat ulang…', 'ok');
+      setTimeout(() => location.reload(), 900);
     });
   }
   window.addEventListener('beforeinstallprompt', (e) => {

@@ -425,7 +425,8 @@ async function serveStatic(p) {
   if (!buf) { p = '/index.html'; buf = await tryRead(p); } // SPA fallback
   if (!buf) return new Response('Not Found', { status: 404 });
   const ext = p.slice(p.lastIndexOf('.')).toLowerCase();
-  return new Response(buf, { headers: { 'Content-Type': MIME[ext] || 'application/octet-stream' } });
+  const cc = (ext === '.html' || ext === '.js' || ext === '.webmanifest') ? 'no-store' : 'public, max-age=3600';
+  return new Response(buf, { headers: { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cc } });
 }
 
 /* ---------------- router utama ---------------- */
