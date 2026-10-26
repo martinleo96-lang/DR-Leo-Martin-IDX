@@ -1236,6 +1236,22 @@ function obAlertFromChart(list) {
   if (changed) { saveAlerts(); renderAlerts(); }
 }
 
+/* Ambil baris Order Block untuk banyak simbol — dipotong 15/panggilan
+   (batas irit CPU Cloudflare; server Node mampu 60 sekaligus). */
+async function fetchObRows(syms) {
+  const out = [];
+  for (let i = 0; i < syms.length; i += 15) {
+    const q = syms.slice(i, i + 15).map(encodeURIComponent).join(',');
+    if (!q) continue;
+    try {
+      const r = await fetch('/api/orderblocks?symbols=' + q);
+      const j = await r.json();
+      out.push(...(j.data || []));
+    } catch (e) {}
+  }
+  return out;
+}
+
 let obCheckRunning = false;
 async function checkObAlerts() {
   if (obCheckRunning) return;
@@ -1244,10 +1260,8 @@ async function checkObAlerts() {
   obCheckRunning = true;
   try {
     const syms = [...new Set(act.map(a => a.symbol))];
-    const r = await fetch('/api/orderblocks?symbols=' + syms.map(encodeURIComponent).join(','));
-    const j = await r.json();
     const bySym = {};
-    for (const row of j.data || []) bySym[String(row.symbol).replace(/\.JK$/, '')] = row.obs || [];
+    for (const row of await fetchObRows(syms)) bySym[String(row.symbol).replace(/\.JK$/, '')] = row.obs || [];
     let changed = false;
     for (const a of act) {
       const obs = bySym[a.symbol] || [];
@@ -1706,9 +1720,7 @@ async function autoObScan() {
   if (!syms.length) return;
   obScanRunning = true;
   try {
-    const r = await fetch('/api/orderblocks?symbols=' + syms.map(encodeURIComponent).join(','));
-    const j = await r.json();
-    const rows = j.data || [];
+    const rows = await fetchObRows(syms);
     const isBaseline = Object.keys(obScanSeen).length === 0;
     let firedCount = 0;
     for (const row of rows) {

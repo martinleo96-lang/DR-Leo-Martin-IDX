@@ -107,6 +107,7 @@ const mkEntry = (u) => ({ s: u[0], n: u[1], sec: u[2] || null });
 const TIER_A = [...INDICES.map(i => ({ s: i[0], n: i[1] })), ...UNI.filter(u => LIQ.has(u[0])).map(mkEntry)];
 const TIER_B = UNI.filter(u => !LIQ.has(u[0])).map(mkEntry);
 const SCAN_ORDER = [...TIER_A, ...TIER_B]; // indeks+likuid di depan
+const OB_NAME = new Map(UNI.map(u0 => [u0[0], u0[1]]));     // ticker → nama emiten
 
 /* ---------- Snapshot di KV (satu kunci, JSON) ---------- */
 const SNAP_KEY = 'state';
@@ -296,23 +297,34 @@ export default {
       }
       if (p === '/api/orderblocks') {
         const many = String(u.searchParams.get('symbols') || '')
-          .split(',').map(x => x.trim().toUpperCase()).filter(Boolean).slice(0, 12);
+          .split(',').map(x => x.trim().toUpperCase()).filter(Boolean).slice(0, 15);
         const one = String(u.searchParams.get('symbol') || '').trim().toUpperCase();
-        // Tanpa param → 12 saham likuid teratas (dipakai PWA background sync;
-        // dibatasi agar muat di CPU 10ms & 50 subrequest kuota gratis)
+        // Tanpa param → 12 saham likuid teratas (dipakai PWA background sync)
         const syms = many.length ? many : (one ? [one] : LIQ_LIST.slice(0, 12));
         if (!syms.length) return jres({ error: 'Parameter symbol wajib diisi' }, 400);
-        const range = syms.length > 1 ? '6mo' : '1y'; // batch: 6 bulan cukup untuk OB & jauh lebih ringan
+        const range = syms.length > 1 ? '6mo' : '1y'; // batch lebih ringan (CPU 10ms)
+        const wibDate = (t) => new Date((t + 25200) * 1000).toISOString().slice(0, 10);
+        const obOut = (ob, bars) => ({
+          type: ob.type, top: ob.top, bottom: ob.bottom,
+          formedTs: bars[ob.formedIndex] ? bars[ob.formedIndex].time : null,
+          formedTime: bars[ob.formedIndex] ? wibDate(bars[ob.formedIndex].time) : null,
+          broken: !!ob.breaker,
+          breakTime: ob.breaker && bars[ob.breakIndex] ? wibDate(bars[ob.breakIndex].time) : null,
+          volume: ob.volume || null,
+        });
         const rows = [];
         for (let i = 0; i < syms.length; i += CONCUR) {
           const part = await Promise.all(syms.slice(i, i + CONCUR).map(async (sym) => {
+            const bare = sym.replace(/\.JK$/, '');
             try {
               const { bars } = await getDailyBars(sym, range);
-              const obs = TALib.detectOrderBlocks(bars);
-              const isIdx = sym.startsWith('^');
-              const risk = isIdx ? null : TALib.classifyRisk(bars, { liquid: LIQ.has(sym.replace('.JK', '')) });
-              return { symbol: sym.replace('.JK', ''), obs, risk: risk ? risk.code : null, riskNote: risk ? risk.note : null, bars: bars.length };
-            } catch (e) { return { symbol: sym.replace('.JK', ''), obs: [], error: String(e.message || e) }; }
+              const det = TALib.detectOrderBlocks(bars);
+              const obs = [...det.bullish.map(o => obOut(o, bars)), ...det.bearish.map(o => obOut(o, bars))]
+                .filter(x => x.formedTs != null)
+                .sort((a, b) => b.formedTs - a.formedTs)
+                .slice(0, 12);
+              return { symbol: bare, name: OB_NAME.get(bare) || bare, obs };
+            } catch (e) { return { symbol: bare, name: OB_NAME.get(bare) || bare, obs: [], error: String(e.message || e) }; }
           }));
           rows.push(...part);
         }
