@@ -658,11 +658,24 @@ button, input, select { font-family: inherit; }
   .sig-list { flex: 0 0 auto; max-height: 78vh; overflow-y: auto; }
   #details    { order: 3; display: block; border-left: 0; border-top: 1px solid var(--border); overflow-y: visible; }
 
-  /* Bar atas & toolbar: gulir menyamping bila sempit */
-  #topbar  { gap: 8px; padding: 0 8px; }
+  /* Bar atas HP: 3 baris rapi —
+     baris 1: logo … tombol + status Pasar Buka/Tutup + jam
+     baris 2: kolom pencarian lebar penuh
+     baris 3: harga saham terpilih (muncul saat ada pilihan) */
+  #topbar { flex-wrap: wrap; height: auto; padding: 6px 10px; gap: 6px 10px; }
+  .logo { order: 1; }
+  .logo-text { font-size: 13px; }
+  .spacer { order: 2; }
+  #btnInstall { order: 3; }
+  #btnAlertBell { order: 4; }
+  #marketBadge { order: 5; flex: 0 0 auto; padding: 3px 8px; font-size: 11px; }
+  #clock { order: 6; font-size: 11px; }
+  .search-box { order: 10; flex: 1 1 100%; width: auto; height: 36px; }
+  #searchResults { width: 100%; }
+  #quoteHead { order: 11; flex: 1 1 100%; justify-content: space-between; gap: 8px; }
+  .q-name { max-width: 38vw; }
   #toolbar { gap: 6px; padding: 0 8px; }
   .tf-group, .tool-group, .menu-wrap { flex: 0 0 auto; }
-  .search-box { width: 130px; }
 
   /* Grid movers cukup 1 kolom per baris di HP */
   .mv-wrap { grid-template-columns: 1fr 1fr 1fr; gap: 4px; padding: 4px 6px 6px; }
