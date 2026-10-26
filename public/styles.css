@@ -633,3 +633,41 @@ button, input, select { font-family: inherit; }
   .q-name, #sbSource { display: none; }
   .search-box { width: 200px; }
 }
+
+/* ======================= MOBILE (HP) ======================= */
+/* Di layar sempit: jangan sekat 3 kolom — susun vertikal,
+   halaman boleh digulir penuh; chart tetap paling atas. */
+@media (max-width: 760px) {
+  html, body { height: auto; }
+  body { overflow: auto; -webkit-overflow-scrolling: touch; }
+
+  #layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* Urutan blok: chart → watchlist/sinyal → panel kanan (Detail/Teknikal/Alert) */
+  #chartPanel { order: 1; flex: 0 0 auto; height: 56vh; min-height: 380px; }
+  #watchlist  { order: 2; flex: 0 0 auto; border-right: 0; border-top: 1px solid var(--border); }
+  #wlList     { flex: 0 0 auto; max-height: 62vh; overflow-y: auto; }
+  /* Pane Pantau/Sinyal ikut alur halaman HP: kontennya dicap agar nyaman digulir */
+  #wlPanePantau, #wlPaneSinyal { flex: 0 0 auto; min-height: 0; }
+  .sig-list { flex: 0 0 auto; max-height: 78vh; overflow-y: auto; }
+  #details    { order: 3; display: block; border-left: 0; border-top: 1px solid var(--border); overflow-y: visible; }
+
+  /* Bar atas & toolbar: gulir menyamping bila sempit */
+  #topbar  { gap: 8px; padding: 0 8px; }
+  #toolbar { gap: 6px; padding: 0 8px; }
+  .tf-group, .tool-group, .menu-wrap { flex: 0 0 auto; }
+  .search-box { width: 130px; }
+
+  /* Grid movers cukup 1 kolom per baris di HP */
+  .mv-wrap { grid-template-columns: 1fr 1fr 1fr; gap: 4px; padding: 4px 6px 6px; }
+  .mv-item span { font-size: 10px; }
+
+  /* Chips sinyal & kelas risiko tetap bisa digeser */
+  #sigSummary, #sigRisk { overflow-x: auto; }
+}
