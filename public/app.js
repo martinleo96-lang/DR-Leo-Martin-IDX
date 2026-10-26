@@ -895,7 +895,8 @@ $('#indMenu').addEventListener('change', () => {
   state.ind.bb = document.querySelector('[data-ind="bb"]').checked;
   state.ind.vwap = document.querySelector('[data-ind="vwap"]').checked;
   state.ind.ob = document.querySelector('[data-ind="ob"]').checked;
-  state.ind.srp = document.querySelector('[data-ind="srp"]').checked;
+  const __srpEl = document.querySelector('[data-ind="srp"]');
+  if (__srpEl) state.ind.srp = __srpEl.checked; // aman bila HTML edge lama belum punya checkbox
   state.ind.osc = document.querySelector('input[name="osc"]:checked').value;
   buildIndicators();
   renderOrderBlocks();
