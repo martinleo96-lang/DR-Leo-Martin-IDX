@@ -1296,7 +1296,8 @@ $('#sigSummary').addEventListener('click', (e) => {
 $('#sigRisk').addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
   if (!chip) return;
-  riskFilter = chip.dataset.r;
+  riskFilter = (riskFilter === chip.dataset.r) ? 'Semua' : chip.dataset.r; // toggle klik ulang
+  sigFilter = 'Semua'; // reset filter sinyal agar nama saham kelas langsung tampil semua
   renderSignals();
 });
 $('#sigList').addEventListener('click', (e) => {
@@ -1414,28 +1415,47 @@ function renderSignals() {
     badge.classList.toggle('hidden', nSB === 0);
   }
 
-  const shown = sigFilter === 'Semua' ? SIG_ORDER : SIG_ORDER.filter(k => k === sigFilter);
+  // Baris saham (dipakai mode grup maupun mode kelas risiko flat)
+  const rowHtml = (s, k, showLabel) => {
+    const idxCls = String(s.symbol).startsWith('^');
+    const up = (s.changePct || 0) >= 0;
+    const w = Math.round(((s.score + 1) / 2) * 100);
+    const rk = s.risk && RK_META[s.risk];
+    const rkBadge = rk
+      ? `<span class="rk ${rk.cls}" title="${rk.icon} ${rk.label}${s.riskNote ? ' — ' + escapeHtml(s.riskNote) : ''}${s.sector ? ' • ' + escapeHtml(s.sector) : ''}">${rk.icon}</span>`
+      : (idxCls ? '<span class="rk rk-idx" title="Indeks">📊</span>' : '');
+    const lbl = showLabel ? `<span class="lbl ${SIG_CLS[s.label] || 'neu'}">${s.label}</span>` : '';
+    return `<div class="sg-row" data-sym="${escapeHtml(s.symbol)}" data-name="${escapeHtml(s.name || '')}">` +
+      `<div class="sg-l"><b>${rkBadge}${escapeHtml(s.symbol)}${recentMark(s.symbol)}</b><span>${escapeHtml(s.name || '')}</span></div>` +
+      `<div class="sg-bar" title="Skor ${fmtNum(s.score, 2)} • Beli ${s.buys} / Jual ${s.sells} / Netral ${s.neutrals}${s.sector ? ' • ' + escapeHtml(s.sector) : ''}">${lbl}<i class="${SIG_CLS[k] || 'neu'}" style="width:${w}%"></i></div>` +
+      `<div class="sg-r"><div class="sg-price">${s.price != null ? fmtPrice(s.price, idxCls) : '—'}</div>` +
+      `<div class="sg-chg ${up ? 'up' : 'down'}">${fmtPct(s.changePct)}</div></div>` +
+      `</div>`;
+  };
+
   let html = '';
-  for (const k of shown) {
-    const arr = groups[k];
-    if (!arr.length && sigFilter === 'Semua') continue;
-    html += `<div class="sg-head ${SIG_CLS[k]}"><span class="dot"></span>${k.toUpperCase()} <span class="n">${arr.length}</span></div>`;
-    if (!arr.length) { html += '<div class="al-empty">Tidak ada saham pada kategori ini.</div>'; continue; }
-    for (const s of arr) {
-      const idxCls = String(s.symbol).startsWith('^');
-      const up = (s.changePct || 0) >= 0;
-      const w = Math.round(((s.score + 1) / 2) * 100);
-      const rk = s.risk && RK_META[s.risk];
-      const rkBadge = rk
-        ? `<span class="rk ${rk.cls}" title="${rk.icon} ${rk.label}${s.riskNote ? ' — ' + escapeHtml(s.riskNote) : ''}${s.sector ? ' • ' + escapeHtml(s.sector) : ''}">${rk.icon}</span>`
-        : (idxCls ? '<span class="rk rk-idx" title="Indeks">📊</span>' : '');
-      html +=
-        `<div class="sg-row" data-sym="${escapeHtml(s.symbol)}" data-name="${escapeHtml(s.name || '')}">` +
-        `<div class="sg-l"><b>${rkBadge}${escapeHtml(s.symbol)}${recentMark(s.symbol)}</b><span>${escapeHtml(s.name || '')}</span></div>` +
-        `<div class="sg-bar" title="Skor ${fmtNum(s.score, 2)} • Beli ${s.buys} / Jual ${s.sells} / Netral ${s.neutrals}${s.sector ? ' • ' + escapeHtml(s.sector) : ''}"><i class="${SIG_CLS[k]}" style="width:${w}%"></i></div>` +
-        `<div class="sg-r"><div class="sg-price">${s.price != null ? fmtPrice(s.price, idxCls) : '—'}</div>` +
-        `<div class="sg-chg ${up ? 'up' : 'down'}">${fmtPct(s.changePct)}</div></div>` +
-        `</div>`;
+  if (riskFilter !== 'Semua') {
+    // MODE KELAS RISIKO: daftar flat semua saham di kelas itu — nama langsung terlihat
+    const meta = RK_META[riskFilter];
+    const flat = [...pool]
+      .map(s => Object.assign({}, s, { _a: Math.abs(s.score || 0) }))
+      .sort((a, b) => b._a - a._a);
+    const cap = 400;
+    html += `<div class="sg-head ${meta.cls}"><span class="dot"></span>${meta.icon} ${meta.label.toUpperCase()} <span class="n">${flat.length} saham</span></div>`;
+    if (!flat.length) {
+      html += '<div class="al-empty">Belum ada saham pada kelas ini (tunggu pemindaian selesai).</div>';
+    } else {
+      for (const s of flat.slice(0, cap)) html += rowHtml(s, s.label === 'Buy' || s.label === 'Strong Buy' ? 'Buy' : s.label === 'Neutral' ? 'Neutral' : 'Sell', true);
+      if (flat.length > cap) html += `<div class="al-empty">…dan ${fmtNum(flat.length - cap)} saham lainnya — persempit dengan chip sinyal di atas.</div>`;
+    }
+  } else {
+    const shown = sigFilter === 'Semua' ? SIG_ORDER : SIG_ORDER.filter(k => k === sigFilter);
+    for (const k of shown) {
+      const arr = groups[k];
+      if (!arr.length && sigFilter === 'Semua') continue;
+      html += `<div class="sg-head ${SIG_CLS[k]}"><span class="dot"></span>${k.toUpperCase()} <span class="n">${arr.length}</span></div>`;
+      if (!arr.length) { html += '<div class="al-empty">Tidak ada saham pada kategori ini.</div>'; continue; }
+      for (const s of arr) html += rowHtml(s, k, false);
     }
   }
   $('#sigList').innerHTML = html || '<div class="al-empty">Tidak ada data.</div>';

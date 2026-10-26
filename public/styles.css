@@ -510,6 +510,24 @@ button, input, select { font-family: inherit; }
 .al-form #priceFields { display: flex; flex-direction: column; gap: 10px; }
 
 /* ---------- Auto-alert sinyal & riwayat ---------- */
+/* label sinyal di mode kelas risiko flat */
+.sg-bar .lbl {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-right: 6px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+.sg-bar .lbl.sg-strong-buy { color: #0b6b62; background: rgba(38,166,154,.25); }
+.sg-bar .lbl.sg-buy { color: #26a69a; background: rgba(38,166,154,.15); }
+.sg-bar .lbl.sg-neutral { color: #b2b5be; background: rgba(178,181,190,.12); }
+.sg-bar .lbl.sg-sell { color: #ef5350; background: rgba(239,83,80,.15); }
+.sg-bar .lbl.sg-strong-sell { color: #ff8a80; background: rgba(239,83,80,.25); }
+.sg-bar { display: flex; align-items: center; }
+.sg-bar i { flex-shrink: 0; }
+
 /* ===== Gerak Pasar (market movers) ===== */
 .mv-wrap {
   display: grid;
