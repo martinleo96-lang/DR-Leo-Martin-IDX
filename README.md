@@ -55,7 +55,9 @@ dengan tampilan dan fitur mirip TradingView.
 - **Alert OB per-simbol**: jenis alert *"Order Block baru terbentuk"* untuk pantauan khusus
   (termasuk timeframe intraday saat chart terbuka), via `GET /api/orderblocks?symbols=...`
 - **Watchlist 50+ saham** populer/LQ45 + indeks **IHSG** dan **LQ45**, lengkap dengan harga,
-  perubahan %, dan mini sparkline — diperbarui otomatis tiap 30 detik
+  perubahan %, dan mini sparkline — diperbarui otomatis tiap 30 detik — tombol ⇅ untuk mengurutkan:
+  Bawaan · 🏷 Kelas (💎 Unggulan → ✅ Reguler → ⚠️ High Risk → 🔥 Gorengan) · ⚡ Strong Buy di atas ·
+  ⚡ Strong Sell di atas (urutan tersimpan)
 - **Pencarian saham** seluruh BEI (kode atau nama perusahaan)
 - **Panel detail**: OHLC, volume, rata-rata volume, tertinggi/terendah 52 minggu
 - **Status pasar & jam WIB** sesuai jam perdagangan BEI (termasuk jadwal Jumat)
