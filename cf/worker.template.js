@@ -119,11 +119,43 @@ async function saveSnap(env, snap) {
   try { await env.SNAP.put(SNAP_KEY, JSON.stringify(snap)); } catch (e) {}
 }
 
+/* ---------- Sapuan terkunci ke sesi bursa (WIB) ----------
+   4 sapuan per hari bursa. Tiap jendela cukup panjang untuk
+   menyegarkan SELURUH lapis indeks+likuid (176) dari awal, lalu
+   lanjut merambat sisanya. Di luar jendela pemindai tidur → irit
+   kuota gratis. Cron UTC diubah ke WIB (UTC+7). */
+const SWEEPS = [
+  { id: 'prasesi',  label: 'Pra-Sesi',      from: 7 * 60 + 15,  to: 8 * 60 + 55  },  // 07.15–08.55
+  { id: 'sesi1',    label: 'Sesi 1',        from: 10 * 60 + 15, to: 11 * 60 + 55 },  // 10.15–11.55
+  { id: 'sesi2',    label: 'Sesi 2',        from: 13 * 60 + 35, to: 14 * 60 + 50 },  // 13.35–14.50
+  { id: 'pratutup', label: 'Pra-Penutupan', from: 14 * 60 + 55, to: 16 * 60 + 15 },  // 14.55–16.15
+];
+function wibParts() {
+  try {
+    const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    return { day: d.getDay(), mins: d.getHours() * 60 + d.getMinutes(), key: d.toISOString().slice(0, 10) };
+  } catch (e) {
+    const d = new Date(Date.now() + 7 * 3600e3);
+    return { day: d.getUTCDay(), mins: d.getUTCHours() * 60 + d.getUTCMinutes(), key: d.toISOString().slice(0, 10) };
+  }
+}
+function sweepNow() {
+  const w = wibParts();
+  if (w.day === 0 || w.day === 6) return null;   // akhir pekan: tidur
+  const s = SWEEPS.find(x => w.mins >= x.from && w.mins < x.to);
+  return s ? { ...s, key: w.key + ':' + s.id } : null;  // key unik per sapuan per hari
+}
+
 /* Batch scan kecil per invokasi (CPU free 10ms, koneksi serentak 6,
    subrequest 50) — cursor berputar: indeks+likuid dulu, lalu sisanya. */
 const BATCH = 5, CONCUR = 4;
-async function scanBatch(env) {
+async function scanBatch(env, sweep = null) {
   const snap = await loadSnap(env);
+  if (sweep && snap.sweepKey !== sweep.key) {
+    // Jendela baru dimulai: mulai lagi dari indeks+likuid → segar duluan tiap sapuan
+    snap.cursor = 0; snap.sweepKey = sweep.key;
+    snap.sweepLabel = sweep.label; snap.sweepTs = Date.now();
+  }
   const start = snap.cursor || 0;
   const batch = SCAN_ORDER.slice(start, start + BATCH);
   const reachedEnd = start + BATCH >= SCAN_ORDER.length;
@@ -253,6 +285,7 @@ export default {
         const stale = !snap.tsA || (Date.now() - snap.tsA > 25 * 60000);
         if (stale && env.SNAP) ctx.waitUntil(scanBatch(env).catch(() => {}));
         return jres({
+          sweep: snap.sweepLabel || null, sweepTs: snap.sweepTs || 0,
           data: rows, ts: snap.tsB || snap.tsA || 0,
           total: SCAN_ORDER.length, scanned: rows.length,
           tierA: { done: Math.min(snap.cursor || 0, TIER_A.length), total: TIER_A.length, running: false, ts: snap.tsA || 0 },
@@ -288,6 +321,8 @@ export default {
 
   /* Cron: per batch kecil tiap 2 menit (atur di dashboard Triggers) */
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(scanBatch(env).catch(() => {}));
+    const sw = sweepNow();
+    if (!sw) return; // di luar jendela sesi bursa → hemat kuota
+    ctx.waitUntil(scanBatch(env, sw).catch(() => {}));
   },
 };

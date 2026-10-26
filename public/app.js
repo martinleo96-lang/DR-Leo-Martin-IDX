@@ -1285,6 +1285,7 @@ function marketStatus() {
   const s2 = fri ? [14 * 60, 15 * 60] : [13 * 60 + 30, 15 * 60];
   const inSess = (mins >= s1[0] && mins < s1[1]) || (mins >= s2[0] && mins < s2[1]);
   if (mins >= 8 * 60 + 45 && mins < 9 * 60) return { open: false, label: 'Pra-Pembukaan' };
+  if (mins >= 15 * 60 && mins < 15 * 60 + 15) return { open: false, label: 'Pra-Penutupan' };
   return { open: inSess, label: inSess ? 'Pasar Buka' : 'Pasar Tutup' };
 }
 function tickClock() {
@@ -1393,7 +1394,7 @@ async function loadSignals(force) {
     renderSignals();
     updateWlSigDots();
     const el = $('#sigUpdated');
-    if (el) el.textContent = wibNow().slice(0, 8);
+    if (el) el.textContent = (j.sweep ? j.sweep + ' · ' : '') + wibNow().slice(0, 8);
     // Info progres pemindaian seluruh pasar + jadwalkan refresh cepat selama scan berjalan
     const inf = $('#sigScanInfo');
     const scanning = (j.tierA && j.tierA.running) || (j.tierB && j.tierB.running);
