@@ -727,6 +727,35 @@ function setActiveRow() {
   for (const [sym, rec] of wlRows) rec.row.classList.toggle('active', sym === state.symbol);
 }
 
+/* ---- Urutan daftar pantau: bawaan / kelas risiko / Strong Buy di atas / Strong Sell di atas ---- */
+const WL_SORT_KEY = 'idx-terminal-wlsort';
+let wlSort = lsGet(WL_SORT_KEY, 'bawaan');
+const WL_SORT_MODES = [
+  ['bawaan', 'Bawaan'],
+  ['kelas', '🏷 Kelas'],
+  ['sbuy', '⚡ StrongBuy'],
+  ['ssell', '⚡ StrongSell'],
+];
+function sortWlItems(items) {
+  if (wlSort === 'bawaan' || !signals.length) return items;
+  const sigMap = new Map(signals.map(s => [s.symbol, s]));
+  const rkIdx = (r) => r === 'unggulan' ? 0 : r === 'reguler' ? 1 : r === 'highrisk' ? 2 : r === 'gorengan' ? 3 : 4;
+  const sc = (sym) => { const s = sigMap.get(sym); return s && s.score != null ? s.score : -9; };
+  if (wlSort === 'kelas') return [...items].sort((a, b) =>
+    rkIdx(sigMap.get(a.symbol) && sigMap.get(a.symbol).risk) - rkIdx(sigMap.get(b.symbol) && sigMap.get(b.symbol).risk) || sc(b.symbol) - sc(a.symbol));
+  if (wlSort === 'sbuy') return [...items].sort((x, y) => sc(y.symbol) - sc(x.symbol));  // Strong Buy di atas
+  if (wlSort === 'ssell') return [...items].sort((x, y) => sc(x.symbol) - sc(y.symbol)); // Strong Sell di atas
+  return items;
+}
+$('#wlSort').addEventListener('click', () => {
+  const keys = WL_SORT_MODES.map(m => m[0]);
+  wlSort = keys[(keys.indexOf(wlSort) + 1) % keys.length];
+  lsSet(WL_SORT_KEY, wlSort);
+  $('#wlSortLbl').textContent = (WL_SORT_MODES.find(m => m[0] === wlSort) || [])[1] || 'Bawaan';
+  loadWatchlist(false);
+});
+setTimeout(() => { const el = $('#wlSortLbl'); if (el) el.textContent = (WL_SORT_MODES.find(m => m[0] === wlSort) || [])[1]; }, 0);
+
 async function loadWatchlist(first = false) {
   try {
     if (first) $('#wlList').innerHTML = '<div class="wl-skel">Memuat daftar saham…</div>';
@@ -737,7 +766,9 @@ async function loadWatchlist(first = false) {
     if (first) { idxWrap.innerHTML = ''; listWrap.innerHTML = ''; }
     const fragIdx = document.createDocumentFragment();
     const fragList = document.createDocumentFragment();
-    for (const item of rows) {
+    const stockRows = sortWlItems(rows.filter(it => !String(it.symbol).startsWith('^')));
+    const orderRows = rows.filter(it => String(it.symbol).startsWith('^')).concat(stockRows);
+    for (const item of orderRows) {
       const el = wlRowEl(item);
       if (String(item.symbol).startsWith('^')) fragIdx.appendChild(el);
       else fragList.appendChild(el);
@@ -1376,6 +1407,8 @@ async function loadSignals(force) {
     signals = (j.data || []).filter(x => !x.error && x.label);
     checkSignalChanges(signals);
     checkMarketEmaX(signals);
+    checkMarketVfx(signals);
+    if (wlSort !== 'bawaan') loadWatchlist(false); // susun ulang daftar pantau sesuai mode urutan
     autoObScan();
     renderSignals();
     updateWlSigDots();
@@ -1457,8 +1490,11 @@ function renderSignals() {
     const rkBadge = rk
       ? `<span class="rk ${rk.cls}" title="${rk.icon} ${rk.label}${s.riskNote ? ' — ' + escapeHtml(s.riskNote) : ''}${s.sector ? ' • ' + escapeHtml(s.sector) : ''}">${rk.icon}</span>`
       : (idxCls ? '<span class="rk rk-idx" title="Indeks">📊</span>' : '');
+    const vfxBadge =
+      (s.vfxB ? '<span class="vxb up" title="Vix Fix: harga di titik TERENDAH ekstrem — kandidat pantul">🟩VFX</span>' : '') +
+      (s.vfxT ? '<span class="vxb dn" title="Vix Fix: harga di titik TERTINGGI ekstrem — waspada puncak">🟥VFX</span>' : '');
     return `<div class="sg-row" data-sym="${escapeHtml(s.symbol)}" data-name="${escapeHtml(s.name || '')}">` +
-      `<div class="sg-l"><b>${rkBadge}${escapeHtml(s.symbol)}${recentMark(s.symbol)}</b><span>${escapeHtml(s.name || '')}</span></div>` +
+      `<div class="sg-l"><b>${rkBadge}${escapeHtml(s.symbol)}${vfxBadge}${recentMark(s.symbol)}</b><span>${escapeHtml(s.name || '')}</span></div>` +
       `<div class="sg-bar" title="Skor ${fmtNum(s.score, 2)} • Beli ${s.buys} / Jual ${s.sells} / Netral ${s.neutrals}${s.sector ? ' • ' + escapeHtml(s.sector) : ''}"><i class="${SIG_CLS[k] || 'neu'}" style="width:${w}%"></i></div>` +
       `<div class="sg-r"><div class="sg-price">${s.price != null ? fmtPrice(s.price, idxCls) : '—'}</div>` +
       `<div class="sg-chg ${up ? 'up' : 'down'}">${fmtPct(s.changePct)}</div></div>` +
@@ -1614,6 +1650,9 @@ function initSignalAlertPref() {
   wirePrefChk('#emaxAllChk', () => mxAlertOn, v => { mxAlertOn = v; prefSet(PREF_MXALERT, v); },
     '⚡ Alert EMA cross seluruh pasar AKTIF — setiap cross harian 3/7 & 2/6 di 845 saham',
     '🔕 Alert EMA cross seluruh pasar dinonaktifkan', () => checkMarketEmaX(signals));
+  wirePrefChk('#vfxAlertChk', () => vfxAlertOn, v => { vfxAlertOn = v; prefSet(PREF_VFXALERT, v); },
+    '🟩 Alert Vix Fix AKTIF — harga sentuh titik terendah/tertinggi ekstrem',
+    '🔕 Alert Vix Fix dinonaktifkan', () => checkMarketVfx(signals));
   wirePrefChk('#recapChk', () => recapOn, v => { recapOn = v; prefSet(PREF_RECAP, v); },
     '📋 Rekap harian 09.00 WIB AKTIF', '🔕 Rekap harian dinonaktifkan', () => checkDailyRecap());
   // pulihkan penanda 🆕 dari riwayat (<24 jam)
@@ -1913,6 +1952,49 @@ function fireMx(h, i) {
   const msg = `⚡ ${h.sym}${rk} — EMA ${buy ? '3 cross NAIK 7' : '2 cross TURUN 6'} → ${h.dir} @ ${fmtPrice(h.price, idxCls)} (harian)`;
   pushHistory('emax', msg, h.sym, h.dir);
   if (i < 5) setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser(`DR Leo Martin IDX — EMA Cross ${h.dir} ${h.sym}`, msg); }, i * 600);
+}
+
+/* 🟩 Williams Vix Fix SELURUH PASAR — harga sentuh titik terendah (bawah) atau
+   titik tertinggi (atas) ekstrem menurut indikator WVF harian. Sumber: /api/signals */
+const PREF_VFXALERT = 'idx-terminal-pref-vfxalert';
+const VFX_FIRED_KEY = 'idx-terminal-vfx-fired-v1';
+const VFX_INIT_KEY = 'idx-terminal-vfxinit-v1';
+let vfxAlertOn = prefGet(PREF_VFXALERT, true);
+let vfxFired = lsGet(VFX_FIRED_KEY, {});
+
+function checkMarketVfx(rows) {
+  const now = Date.now();
+  const dk = dayKeyJakarta();
+  const hits = [];
+  for (const s of rows) {
+    if (String(s.symbol).startsWith('^')) continue;
+    if (s.vfxB) {
+      const key = s.symbol + '|bawah|' + dk;
+      if (!vfxFired[key]) { vfxFired[key] = now; hits.push({ sym: s.symbol, dir: 'bawah', price: s.price, risk: s.risk }); }
+    }
+    if (s.vfxT) {
+      const key = s.symbol + '|atas|' + dk;
+      if (!vfxFired[key]) { vfxFired[key] = now; hits.push({ sym: s.symbol, dir: 'atas', price: s.price, risk: s.risk }); }
+    }
+  }
+  for (const k of Object.keys(vfxFired)) if (now - vfxFired[k] > 14 * 864e5) { delete vfxFired[k]; }
+  lsSet(VFX_FIRED_KEY, vfxFired);
+  const initDone = prefGetRaw(VFX_INIT_KEY);
+  try { localStorage.setItem(VFX_INIT_KEY, '1'); } catch (e) {}
+  if (!initDone) return; // baseline pertama → tandai tanpa notifikasi
+  if (!vfxAlertOn || !hits.length) return;
+  hits.slice(0, 5).forEach((h, i) => fireVfx(h, i));
+  if (hits.length > 5) toast(`🟩 +${hits.length - 5} sinyal Vix Fix lain — lihat Riwayat Notifikasi.`, 'ok');
+}
+function fireVfx(h, i) {
+  const bawah = h.dir === 'bawah';
+  const rk = h.risk && RK_META[h.risk] ? ' ' + RK_META[h.risk].icon : '';
+  const idxCls = String(h.sym).startsWith('^');
+  const msg = bawah
+    ? `🟩 VIX FIX BAWAH — ${h.sym}${rk} sentuh titik TERENDAH ekstrem @ ${fmtPrice(h.price, idxCls)} (kandidat pantul)`
+    : `🟥 VIX FIX ATAS — ${h.sym}${rk} sentuh titik TERTINGGI ekstrem @ ${fmtPrice(h.price, idxCls)} (waspada puncak)`;
+  pushHistory('vfx', msg, h.sym, bawah ? 'BUY' : 'SELL');
+  if (i < 5) setTimeout(() => { toast(msg, 'ok'); beep(); notifyUser(`DR Leo Martin IDX — Vix Fix ${h.sym}`, msg); }, i * 600);
 }
 
 /* 📋 Rekap harian 09.00 WIB (jendela 08:55–09:30, sekali sehari) */

@@ -498,10 +498,49 @@ function emaCrossNow(bars) {
   return { buy, sell };
 }
 
+/* Williams Vix Fix (port Pine "Williams Vix Fix Bottoms & Tops", bar harian):
+   bottom = wvfLow menyentuh upper band / persentil-90 → harga di titik TERENDAH ekstrem (kandidat pantul)
+   top    = wvfHigh menyentuh lower band / persentil-90 terbalik → harga di titik TERTINGGI ekstrem (waspada puncak) */
+function vixFix(bars, pd = 22, bbl = 20, mult = 2.0, lb = 50, ph = 0.85) {
+  const n = bars ? bars.length : 0;
+  if (n < lb + 3) return null;
+  const closes = bars.map(b => b.close), highs = bars.map(b => b.high), lows = bars.map(b => b.low);
+  const rollMax = (arr, i, p) => { let m = -Infinity; for (let j = Math.max(0, i - p + 1); j <= i; j++) m = Math.max(m, arr[j]); return m; };
+  const rollMin = (arr, i, p) => { let m = Infinity; for (let j = Math.max(0, i - p + 1); j <= i; j++) m = Math.min(m, arr[j]); return m; };
+  const wL = new Array(n).fill(null), wH = new Array(n).fill(null);
+  for (let i = pd - 1; i < n; i++) {
+    const hiC = rollMax(closes, i, pd);
+    wL[i] = (hiC - lows[i]) / hiC * 100;
+    const loC = rollMin(closes, i, pd);
+    wH[i] = (loC - highs[i]) / loC * 100; // selalu negatif (mirip gaya "Highs" di Pine)
+  }
+  const stats = (arr, i, p) => {
+    let s = 0, cnt = 0;
+    for (let j = i - p + 1; j <= i; j++) { if (arr[j] != null) { s += arr[j]; cnt++; } }
+    if (!cnt) return { mean: 0, sd: 0 };
+    const mean = s / cnt;
+    let v = 0; for (let j = i - p + 1; j <= i; j++) { if (arr[j] != null) v += (arr[j] - mean) * (arr[j] - mean); }
+    return { mean, sd: Math.sqrt(v / cnt) };
+  };
+  const i = n - 1;
+
+  const stL = stats(wL, i, bbl);
+  const upL = stL.mean + mult * stL.sd;
+  const rHi = rollMax(wL, i, lb) * ph;
+  const bottom = wL[i] >= upL || wL[i] >= rHi;
+
+  const stH = stats(wH, i, bbl);
+  const loH = stH.mean - mult * stH.sd;
+  const rLo = rollMin(wH, i, lb) * ph; // wH negatif → ×0.85 = kurang negatif (persentil terbalik)
+  const top = wH[i] <= loH || wH[i] <= rLo;
+
+  return { bottom, top, bVal: +wL[i].toFixed(1), tVal: +wH[i].toFixed(2) };
+}
+
 return {
   emaArr, rsiArr, macdArr,
   smaOn, emaOn, wmaOn, vwmaOn, hullOn,
   stochRaw, cciRaw, aoRaw, willrRaw, bbpRaw, uoRaw, adxRaw,
-  computeRatings, labelOf, detectOrderBlocks, classifyRisk, emaCrossNow,
+  computeRatings, labelOf, detectOrderBlocks, classifyRisk, emaCrossNow, vixFix,
 };
 });

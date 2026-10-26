@@ -139,6 +139,7 @@
     <div id="wlPanePantau">
       <div class="wl-head">
         <span>Daftar Pantau</span>
+        <button id="wlSort" class="wl-sort" title="Ubah urutan daftar pantau">⇅ <span id="wlSortLbl">Bawaan</span></button>
         <span id="wlUpdated" class="wl-updated" title="Terakhir diperbarui"></span>
       </div>
       <div id="wlIndices"></div>
@@ -158,6 +159,7 @@
         <label><input type="checkbox" id="confAlertChk" checked /> 💎 Alert konfluensi (Strong Buy/Sell + OB segar selaras)</label>
         <label><input type="checkbox" id="emaxAlertChk" checked /> ⚡ Alert EMA cross (3/7 BUY · 2/6 SELL) sesuai timeframe chart</label>
         <label><input type="checkbox" id="emaxAllChk" checked /> ⚡ Alert EMA cross harian untuk SELURUH pasar (845 saham)</label>
+        <label><input type="checkbox" id="vfxAlertChk" checked /> 🟩 Alert Williams Vix Fix — harga sentuh titik terendah (kandidat pantul) / titik tertinggi ekstrem (waspada puncak)</label>
         <label><input type="checkbox" id="recapChk" checked /> 📋 Rekap harian pukul 09.00 WIB</label>
       </div>
       <div class="sig-summary" id="sigSummary"></div>
