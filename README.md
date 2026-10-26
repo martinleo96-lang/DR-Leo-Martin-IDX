@@ -119,6 +119,7 @@ Cara kerja alert otomatis setelah terinstal:
 4. **💎 Konfluensi** — Strong Buy/Sell **+** OB segar (<5 hari) selaras (double beep, sekali per saham per hari).
 5. **⚡ EMA cross (chart)** — 3/7 ↑ BUY / 2/6 ↓ SELL pada saham yang sedang dibuka, **mengikuti timeframe chart** (5m/15m/30m/1d/1wk); cross terbaru terdeteksi tiap refresh chart 60 detik.
 6. **⚡ EMA cross seluruh pasar (harian)** — *setiap* cross 3/7 BUY atau 2/6 SELL pada bar harian terbaru di **845 saham** memicu alert (maks 5 notif penuh per siklus, sisanya masuk riwayat; anti-duplikat per saham per hari) — terdeteksi otomatis oleh pemindai server.
+   - 🆕 **Kotak Alert EMA Cross** (tab Sinyal): periode **bisa diubah-ubah** — preset 3×7 · 5×20 · 9×21 · 20×50 · 50×200 atau angka bebas — plus daftar **waktu cross tiap saham** (hari ini / kemarin / n hari lalu) untuk cross ≤ 5 hari bursa terakhir di seluruh pasar.
 7. **📋 Rekap harian 09.00 WIB** — ringkasan pasar: IHSG, jumlah+nama Strong Buy/Sell, OB baru 24 jam, EMA cross 24 jam.
 
 Semua notifikasi tercatat di **Riwayat Notifikasi** (ikon 🔔 → tab Alert), 100 entri terakhir.
